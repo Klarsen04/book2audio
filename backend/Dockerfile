@@ -9,7 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN mkdir -p /app/data /app/output
+
 ENV DOCKER=1
+ENV DATABASE_PATH=/app/data/book2audio.db
 
 EXPOSE 8000
 

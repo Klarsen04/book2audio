@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import api from "@/lib/api";
 
 interface Props {
   jobId: string;
@@ -36,7 +34,7 @@ export default function ConversionPanel({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    axios.get(`${API_URL}/api/voices`).then((res) => {
+    api.get("/api/voices").then((res) => {
       setVoices(res.data.voices);
     });
   }, []);
@@ -46,7 +44,7 @@ export default function ConversionPanel({
 
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/status/${jobId}`);
+        const res = await api.get(`/api/status/${jobId}`);
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
 
@@ -75,7 +73,7 @@ export default function ConversionPanel({
     setProgress(0);
 
     try {
-      await axios.post(`${API_URL}/api/convert/${jobId}?voice=${selectedVoice}`);
+      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}`);
     } catch (err: any) {
       setIsConverting(false);
       setError(err.response?.data?.detail || "Failed to start conversion");

@@ -1,5 +1,6 @@
 import io
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -62,7 +63,10 @@ def extract_from_pdf(file_bytes: bytes) -> BookContent:
 
 
 def extract_from_epub(file_bytes: bytes) -> BookContent:
-    book = epub.read_epub(io.BytesIO(file_bytes))
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+    book = epub.read_epub(tmp_path)
     title = book.get_metadata("DC", "title")
     title = title[0][0] if title else "Untitled"
 
@@ -84,6 +88,9 @@ def extract_from_epub(file_bytes: bytes) -> BookContent:
 
     if not chapters:
         chapters = [Chapter(title="Full Text", text="No readable content found.")]
+
+    import os
+    os.unlink(tmp_path)
 
     word_count = sum(len(ch.text.split()) for ch in chapters)
     return BookContent(title=title, chapters=chapters, word_count=word_count)

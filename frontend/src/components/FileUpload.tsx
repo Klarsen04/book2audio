@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useRef, DragEvent } from "react";
-import axios from "axios";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+import api from "@/lib/api";
 
 interface Props {
   onUploadComplete: (result: any) => void;
@@ -59,7 +57,7 @@ export default function FileUpload({ onUploadComplete }: Props) {
     formData.append("file", file);
 
     try {
-      const response = await axios.post(`${API_URL}/api/upload`, formData);
+      const response = await api.post("/api/upload", formData);
       onUploadComplete(response.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Upload failed. Please try again.");
