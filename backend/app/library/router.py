@@ -21,7 +21,8 @@ async def list_documents(user: dict = Depends(get_current_user)):
     documents = []
     for row in rows:
         doc = dict(row)
-        doc["chapters"] = json.loads(doc.pop("chapters_json"))
+        chapters = json.loads(doc.pop("chapters_json"))
+        doc["chapters"] = [{"title": ch["title"], "word_count": ch.get("word_count", 0)} for ch in chapters]
         documents.append(doc)
 
     return {"documents": documents}

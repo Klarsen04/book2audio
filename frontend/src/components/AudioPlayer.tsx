@@ -9,9 +9,21 @@ interface Props {
   docId: string;
   title: string;
   chapters: { title: string; word_count: number }[];
+  seekTarget?: number | null;
+  onSeekHandled?: () => void;
+  onPlayingChange?: (playing: boolean) => void;
+  onTimeUpdate?: (time: number) => void;
 }
 
-export default function AudioPlayer({ docId, title, chapters }: Props) {
+export default function AudioPlayer({
+  docId,
+  title,
+  chapters,
+  seekTarget,
+  onSeekHandled,
+  onPlayingChange,
+  onTimeUpdate,
+}: Props) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -22,17 +34,34 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
 
   const audioUrl = `/api/download/${docId}`;
 
+  // Handle seek from parent (chapter selection)
+  useEffect(() => {
+    if (seekTarget !== null && seekTarget !== undefined && audioRef.current) {
+      audioRef.current.currentTime = seekTarget;
+      setCurrentTime(seekTarget);
+      if (!isPlaying) {
+        audioRef.current.play();
+        setIsPlaying(true);
+        onPlayingChange?.(true);
+      }
+      onSeekHandled?.();
+    }
+  }, [seekTarget]);
+
   // Load saved position on mount
   useEffect(() => {
-    api.get(`/api/playback/${docId}/position`).then((res) => {
-      const saved = res.data.position;
-      if (saved > 0 && audioRef.current) {
-        audioRef.current.currentTime = saved;
-        setCurrentTime(saved);
-      }
-      lastSavedPosition.current = saved;
-      setPositionLoaded(true);
-    }).catch(() => setPositionLoaded(true));
+    api
+      .get(`/api/playback/${docId}/position`)
+      .then((res) => {
+        const saved = res.data.position;
+        if (saved > 0 && audioRef.current) {
+          audioRef.current.currentTime = saved;
+          setCurrentTime(saved);
+        }
+        lastSavedPosition.current = saved;
+        setPositionLoaded(true);
+      })
+      .catch(() => setPositionLoaded(true));
   }, [docId]);
 
   // Load saved speed from localStorage
@@ -76,29 +105,36 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
         );
       }
     };
-    window.addEventListener("beforeunload", handleUnload);
-    document.addEventListener("visibilitychange", () => {
+    const handleVisibility = () => {
       if (document.visibilityState === "hidden" && audioRef.current) {
         savePosition(audioRef.current.currentTime);
       }
-    });
-    return () => window.removeEventListener("beforeunload", handleUnload);
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [docId, savePosition]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateTime = () => {
+      setCurrentTime(audio.currentTime);
+      onTimeUpdate?.(audio.currentTime);
+    };
     const updateDuration = () => {
       setDuration(audio.duration);
-      // Seek to saved position after metadata loads
       if (positionLoaded && lastSavedPosition.current > 0) {
         audio.currentTime = lastSavedPosition.current;
       }
     };
     const handleEnded = () => {
       setIsPlaying(false);
+      onPlayingChange?.(false);
       savePosition(audio.currentTime);
     };
 
@@ -111,7 +147,7 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [positionLoaded, savePosition]);
+  }, [positionLoaded, savePosition, onTimeUpdate, onPlayingChange]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -123,6 +159,7 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
       audio.play();
     }
     setIsPlaying(!isPlaying);
+    onPlayingChange?.(!isPlaying);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,6 +186,7 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
     if (audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
+      onPlayingChange?.(false);
       savePosition(audioRef.current.currentTime);
     }
   };
@@ -176,88 +214,68 @@ export default function AudioPlayer({ docId, title, chapters }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gray-900 rounded-xl p-8">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-3">🎧</div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          <p className="text-sm text-gray-400 mt-1">
+    <div className="bg-gray-900 rounded-xl p-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="text-3xl">🎧</div>
+        <div>
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <p className="text-xs text-gray-400">
             {chapters.length} chapter{chapters.length !== 1 ? "s" : ""} &middot; {formatTime(duration)}
           </p>
         </div>
+      </div>
 
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-        <div className="mb-4">
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            value={currentTime}
-            onChange={handleSeek}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
+      <div className="mb-3">
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          value={currentTime}
+          onChange={handleSeek}
+          className="w-full"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
         </div>
+      </div>
 
-        <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center justify-between">
+        <SleepTimer onTimerEnd={handleSleepEnd} onFadeStart={handleFadeStart} />
+
+        <div className="flex items-center gap-4">
           <button onClick={() => skip(-30)} className="text-gray-400 hover:text-white transition-colors" title="Back 30s">
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
             </svg>
           </button>
 
           <button
             onClick={togglePlay}
-            className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all"
+            className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all"
           >
             {isPlaying ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
               </svg>
             ) : (
-              <svg className="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M8 5v14l11-7z" />
               </svg>
             )}
           </button>
 
           <button onClick={() => skip(30)} className="text-gray-400 hover:text-white transition-colors" title="Forward 30s">
-            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
             </svg>
           </button>
         </div>
 
-        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-800">
-          <SleepTimer onTimerEnd={handleSleepEnd} onFadeStart={handleFadeStart} />
-          <PlaybackSpeed speed={speed} onChange={handleSpeedChange} />
-        </div>
+        <PlaybackSpeed speed={speed} onChange={handleSpeedChange} />
       </div>
-
-      <a
-        href={audioUrl}
-        download
-        className="block w-full py-3 text-center bg-gray-800 hover:bg-gray-700 rounded-xl font-medium transition-all"
-      >
-        Download MP3
-      </a>
-
-      {chapters.length > 1 && (
-        <div className="bg-gray-900 rounded-xl p-4">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Chapters</h3>
-          <div className="space-y-1 max-h-48 overflow-y-auto">
-            {chapters.map((ch, i) => (
-              <div key={i} className="px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800">
-                {ch.title}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

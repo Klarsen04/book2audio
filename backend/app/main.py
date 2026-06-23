@@ -71,7 +71,8 @@ async def upload_file(file: UploadFile, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=422, detail=f"Failed to parse file: {str(e)}")
 
     doc_id = str(uuid.uuid4())
-    chapters_data = [{"title": ch.title, "word_count": len(ch.text.split())} for ch in content.chapters]
+    chapters_data = [{"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text} for ch in content.chapters]
+    chapters_meta = [{"title": ch.title, "word_count": len(ch.text.split())} for ch in content.chapters]
 
     with get_db() as conn:
         conn.execute(
@@ -102,7 +103,7 @@ async def upload_file(file: UploadFile, user: dict = Depends(get_current_user)):
     return {
         "job_id": doc_id,
         "title": content.title,
-        "chapters": chapters_data,
+        "chapters": chapters_meta,
         "total_word_count": content.word_count,
     }
 
