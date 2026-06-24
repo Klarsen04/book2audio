@@ -11,6 +11,7 @@ interface Chapter {
   title: string;
   word_count: number;
   text?: string;
+  start_time?: number;
 }
 
 interface Document {
@@ -43,12 +44,20 @@ export default function PlayerPage() {
 
   const handleChapterSelect = (index: number) => {
     if (!document) return;
-    const chapters = document.chapters;
-    const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
-    const wordsBeforeChapter = chapters.slice(0, index).reduce((sum, ch) => sum + ch.word_count, 0);
-    const fraction = wordsBeforeChapter / totalWords;
-    const duration = document.audio_duration || 0;
-    const seekTime = fraction * duration;
+    const chapter = document.chapters[index];
+
+    let seekTime: number;
+    if (chapter.start_time !== undefined) {
+      // Use exact timestamp recorded during conversion
+      seekTime = chapter.start_time;
+    } else {
+      // Fallback: estimate from word counts
+      const chapters = document.chapters;
+      const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
+      const wordsBeforeChapter = chapters.slice(0, index).reduce((sum, ch) => sum + ch.word_count, 0);
+      seekTime = (wordsBeforeChapter / totalWords) * (document.audio_duration || 0);
+    }
+
     setSeekTarget(seekTime);
     setCurrentChapterIndex(index);
   };
@@ -57,42 +66,66 @@ export default function PlayerPage() {
     if (!document) return;
     const chapters = document.chapters;
     const chapter = chapters[chapterIndex];
-    if (!chapter.text) return;
 
-    const textPosition = chapter.text.indexOf(selectedText);
-    if (textPosition === -1) {
-      handleChapterSelect(chapterIndex);
-      return;
+    // Get chapter start and end times
+    const chapterStart = chapter.start_time !== undefined
+      ? chapter.start_time
+      : (chapters.slice(0, chapterIndex).reduce((s, c) => s + c.word_count, 0) / chapters.reduce((s, c) => s + c.word_count, 0)) * (document.audio_duration || 0);
+
+    const nextChapter = chapters[chapterIndex + 1];
+    const chapterEnd = nextChapter?.start_time !== undefined
+      ? nextChapter.start_time
+      : document.audio_duration || 0;
+
+    const chapterDuration = chapterEnd - chapterStart;
+
+    // Find where in the chapter text the selection is
+    if (chapter.text) {
+      const textPosition = chapter.text.indexOf(selectedText);
+      if (textPosition !== -1) {
+        const chapterTextBefore = chapter.text.substring(0, textPosition);
+        const fractionInChapter = chapterTextBefore.split(/\s+/).length / Math.max(chapter.word_count, 1);
+        const seekTime = chapterStart + fractionInChapter * chapterDuration;
+        setSeekTarget(seekTime);
+        setCurrentChapterIndex(chapterIndex);
+        return;
+      }
     }
 
-    const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
-    const wordsBeforeChapter = chapters.slice(0, chapterIndex).reduce((sum, ch) => sum + ch.word_count, 0);
-    const chapterTextBefore = chapter.text.substring(0, textPosition);
-    const wordsInChapterBefore = chapterTextBefore.split(/\s+/).length;
-    const fractionInChapter = wordsInChapterBefore / chapter.word_count;
-    const chapterDurationFraction = chapter.word_count / totalWords;
-    const overallFraction = (wordsBeforeChapter / totalWords) + (fractionInChapter * chapterDurationFraction);
-
-    const duration = document.audio_duration || 0;
-    const seekTime = overallFraction * duration;
-    setSeekTarget(seekTime);
+    // Fallback: just play from chapter start
+    setSeekTarget(chapterStart);
     setCurrentChapterIndex(chapterIndex);
   };
 
   const handleTimeUpdate = useCallback(
     (currentTime: number) => {
-      if (!document || !document.audio_duration) return;
-      const duration = document.audio_duration;
-      const fraction = currentTime / duration;
-      const totalWords = document.chapters.reduce((sum, ch) => sum + ch.word_count, 0);
-      let wordsSoFar = 0;
-      for (let i = 0; i < document.chapters.length; i++) {
-        wordsSoFar += document.chapters[i].word_count;
-        if (wordsSoFar / totalWords >= fraction) {
-          if (i !== currentChapterIndex) {
-            setCurrentChapterIndex(i);
+      if (!document) return;
+      const chapters = document.chapters;
+      const hasTimestamps = chapters[0]?.start_time !== undefined;
+
+      if (hasTimestamps) {
+        // Use exact timestamps — find last chapter whose start_time <= currentTime
+        let activeIndex = 0;
+        for (let i = 0; i < chapters.length; i++) {
+          if ((chapters[i].start_time ?? 0) <= currentTime) {
+            activeIndex = i;
+          } else {
+            break;
           }
-          break;
+        }
+        if (activeIndex !== currentChapterIndex) setCurrentChapterIndex(activeIndex);
+      } else {
+        // Fallback: word count estimate
+        if (!document.audio_duration) return;
+        const fraction = currentTime / document.audio_duration;
+        const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
+        let wordsSoFar = 0;
+        for (let i = 0; i < chapters.length; i++) {
+          wordsSoFar += chapters[i].word_count;
+          if (wordsSoFar / totalWords >= fraction) {
+            if (i !== currentChapterIndex) setCurrentChapterIndex(i);
+            break;
+          }
         }
       }
     },

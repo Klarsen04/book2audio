@@ -150,9 +150,13 @@ def _run_conversion(doc_id: str, voice: str):
 
         full_audio = AudioSegment.empty()
         total_chapters = len(content.chapters)
+        chapter_start_times = []  # exact start time in seconds for each chapter
 
         for i, chapter in enumerate(content.chapters):
             progress["current_chapter"] = i + 1
+
+            # Record this chapter's start time before appending
+            chapter_start_times.append(len(full_audio) / 1000.0)
 
             def on_chunk_progress(current, total):
                 chapter_progress = (current / total) * 100
@@ -168,10 +172,15 @@ def _run_conversion(doc_id: str, voice: str):
 
         duration = len(full_audio) / 1000.0
 
+        # Inject exact start times into the stored chapters_json
         with get_db() as conn:
+            row = conn.execute("SELECT chapters_json FROM documents WHERE id = ?", (doc_id,)).fetchone()
+            chapters = json.loads(row[0])
+            for i, ch in enumerate(chapters):
+                ch["start_time"] = chapter_start_times[i]
             conn.execute(
-                "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, converted_at = datetime('now') WHERE id = ?",
-                (str(output_path), duration, doc_id),
+                "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
+                (str(output_path), duration, json.dumps(chapters), doc_id),
             )
 
         progress["status"] = "completed"
