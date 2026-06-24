@@ -124,20 +124,30 @@ async def refresh(request: Request, response: Response):
     return {"ok": True}
 
 
+# In-memory state store for OAuth CSRF protection (expires after 10 min)
+_oauth_states: dict[str, float] = {}
+
+
 @router.get("/google")
-async def google_login(request: Request):
+async def google_login():
+    import time
     state = uuid.uuid4().hex
+    _oauth_states[state] = time.time()
+    # Clean up old states
+    cutoff = time.time() - 600
+    expired = [k for k, v in _oauth_states.items() if v < cutoff]
+    for k in expired:
+        del _oauth_states[k]
     url = get_google_auth_url(state)
-    response = RedirectResponse(url=url)
-    response.set_cookie("oauth_state", state, httponly=True, max_age=600)
-    return response
+    return RedirectResponse(url=url)
 
 
 @router.get("/google/callback")
 async def google_callback(code: str, state: str, request: Request):
-    saved_state = request.cookies.get("oauth_state")
-    if not saved_state or saved_state != state:
+    import time
+    if state not in _oauth_states:
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
+    del _oauth_states[state]
 
     user_info = await exchange_code_for_user(code)
     if not user_info:
@@ -181,5 +191,4 @@ async def google_callback(code: str, state: str, request: Request):
 
     response = RedirectResponse(url=f"{FRONTEND_URL}/auth/callback")
     set_auth_cookies(response, access_token, refresh_raw)
-    response.delete_cookie("oauth_state")
     return response
