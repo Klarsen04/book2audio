@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://book2audio-backend.onrender.com/api/:path*"
+      "destination": "https://book2audio-eyw2.onrender.com/api/:path*"
     }
   ],
   "headers": [
