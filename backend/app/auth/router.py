@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Response, Request, Depends
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models import RegisterRequest, LoginRequest, UserResponse
@@ -90,6 +91,18 @@ async def logout(response: Response, request: Request):
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
     return {"user": user}
+
+
+class SetCookiesRequest(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
+@router.post("/set-cookies")
+async def set_cookies(req: SetCookiesRequest, response: Response):
+    """Used by cross-domain OAuth flow to set cookies from URL params."""
+    set_auth_cookies(response, req.access_token, req.refresh_token)
+    return {"ok": True}
 
 
 @router.post("/refresh")
@@ -189,6 +202,11 @@ async def google_callback(code: str, state: str, request: Request):
             (str(uuid.uuid4()), user_id, refresh_hash, expires_at),
         )
 
-    response = RedirectResponse(url=f"{FRONTEND_URL}/auth/callback")
-    set_auth_cookies(response, access_token, refresh_raw)
+    # Pass tokens as URL params since cross-domain cookies are blocked by browsers
+    import urllib.parse
+    params = urllib.parse.urlencode({
+        "access_token": access_token,
+        "refresh_token": refresh_raw,
+    })
+    response = RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?{params}")
     return response
