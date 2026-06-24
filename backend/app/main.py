@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 
 from app.database import init_db, get_db
 from app.parsers.extractor import extract_text
-from app.tts.polly import synthesize_chapter, list_voices
+from app.tts.provider import get_synthesize_fn, get_voices_fn
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
 from app.library.router import router as library_router
@@ -48,7 +48,7 @@ def startup():
 
 @app.get("/api/voices")
 async def get_voices():
-    return {"voices": list_voices()}
+    return {"voices": get_voices_fn()()}
 
 
 @app.post("/api/upload")
@@ -163,7 +163,7 @@ def _run_conversion(doc_id: str, voice: str):
                 overall = ((i * 100) + chapter_progress) / total_chapters
                 progress["progress"] = int(overall)
 
-            audio_bytes = synthesize_chapter(chapter.text, voice, on_progress=on_chunk_progress)
+            audio_bytes = get_synthesize_fn()(chapter.text, voice, on_progress=on_chunk_progress)
             segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
             full_audio += segment
 

@@ -11,3 +11,4 @@ PyJWT==2.8.0
 bcrypt==4.1.2
 httpx==0.26.0
 pydantic[email]==2.5.3
+edge-tts==6.1.9
