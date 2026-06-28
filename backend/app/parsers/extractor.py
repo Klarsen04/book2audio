@@ -1,13 +1,13 @@
 import io
 import re
-import tempfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from xml.etree import ElementTree
 
 import fitz
 from bs4 import BeautifulSoup
 from docx import Document
-from ebooklib import epub
 
 
 @dataclass
@@ -62,19 +62,46 @@ def extract_from_pdf(file_bytes: bytes) -> BookContent:
     return BookContent(title=title, chapters=chapters, word_count=word_count)
 
 
+def _epub_spine_hrefs(zf: zipfile.ZipFile) -> tuple[str, list[str]]:
+    """Parse the OPF to get the book title and spine-ordered content hrefs."""
+    container = ElementTree.fromstring(zf.read("META-INF/container.xml"))
+    ns = {"c": "urn:oasis:names:tc:opendocument:xmlns:container"}
+    rootfile_path = container.find(".//c:rootfile", ns).get("full-path")
+
+    opf = ElementTree.fromstring(zf.read(rootfile_path))
+    opf_ns = {"opf": "http://www.idpf.org/2007/opf", "dc": "http://purl.org/dc/elements/1.1/"}
+    opf_dir = rootfile_path.rsplit("/", 1)[0] + "/" if "/" in rootfile_path else ""
+
+    title_el = opf.find(".//dc:title", opf_ns)
+    title = title_el.text.strip() if title_el is not None and title_el.text else "Untitled"
+
+    manifest = {}
+    for item in opf.findall(".//opf:manifest/opf:item", opf_ns):
+        manifest[item.get("id")] = opf_dir + item.get("href")
+
+    spine_hrefs = []
+    for itemref in opf.findall(".//opf:spine/opf:itemref", opf_ns):
+        idref = itemref.get("idref")
+        if idref in manifest:
+            spine_hrefs.append(manifest[idref])
+
+    return title, spine_hrefs
+
+
 def extract_from_epub(file_bytes: bytes) -> BookContent:
-    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
-        tmp.write(file_bytes)
-        tmp_path = tmp.name
-    book = epub.read_epub(tmp_path)
-    title = book.get_metadata("DC", "title")
-    title = title[0][0] if title else "Untitled"
+    zf = zipfile.ZipFile(io.BytesIO(file_bytes))
+    title, spine_hrefs = _epub_spine_hrefs(zf)
 
     chapters: list[Chapter] = []
     chapter_num = 1
 
-    for item in book.get_items_of_type(9):  # ITEM_DOCUMENT
-        soup = BeautifulSoup(item.get_content(), "html.parser")
+    for href in spine_hrefs:
+        try:
+            content = zf.read(href)
+        except KeyError:
+            continue
+
+        soup = BeautifulSoup(content, "html.parser")
 
         heading = soup.find(re.compile(r"^h[1-3]$"))
         chapter_title = heading.get_text(strip=True) if heading else f"Chapter {chapter_num}"
@@ -86,11 +113,10 @@ def extract_from_epub(file_bytes: bytes) -> BookContent:
             chapters.append(Chapter(title=chapter_title, text=text.strip()))
             chapter_num += 1
 
+    zf.close()
+
     if not chapters:
         chapters = [Chapter(title="Full Text", text="No readable content found.")]
-
-    import os
-    os.unlink(tmp_path)
 
     word_count = sum(len(ch.text.split()) for ch in chapters)
     return BookContent(title=title, chapters=chapters, word_count=word_count)
