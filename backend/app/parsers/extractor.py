@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
 
-import fitz
+import pdfplumber
 from bs4 import BeautifulSoup
 from docx import Document
 
@@ -24,40 +24,43 @@ class BookContent:
 
 
 def extract_from_pdf(file_bytes: bytes) -> BookContent:
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    title = doc.metadata.get("title", "") or "Untitled"
+    pdf = pdfplumber.open(io.BytesIO(file_bytes))
+    title = (pdf.metadata or {}).get("Title", "") or "Untitled"
 
     chapters: list[Chapter] = []
     current_text = ""
     current_title = "Chapter 1"
     chapter_num = 1
 
-    for page in doc:
-        blocks = page.get_text("dict")["blocks"]
-        for block in blocks:
-            if "lines" not in block:
-                continue
-            for line in block["lines"]:
-                text = "".join(span["text"] for span in line["spans"])
-                font_size = max((span["size"] for span in line["spans"]), default=12)
+    for page in pdf.pages:
+        words = page.extract_words(extra_attrs=["size"])
+        lines: dict[float, list] = {}
+        for w in words:
+            top = round(w["top"], 1)
+            lines.setdefault(top, []).append(w)
 
-                if font_size > 16 and len(text.strip()) < 100 and text.strip():
-                    if current_text.strip():
-                        chapters.append(Chapter(title=current_title, text=current_text.strip()))
-                    chapter_num += 1
-                    current_title = text.strip()
-                    current_text = ""
-                else:
-                    current_text += text + " "
+        for top in sorted(lines):
+            line_words = sorted(lines[top], key=lambda w: w["x0"])
+            text = " ".join(w["text"] for w in line_words)
+            font_size = max(w.get("size", 12) for w in line_words)
+
+            if font_size > 16 and len(text.strip()) < 100 and text.strip():
+                if current_text.strip():
+                    chapters.append(Chapter(title=current_title, text=current_text.strip()))
+                chapter_num += 1
+                current_title = text.strip()
+                current_text = ""
+            else:
+                current_text += text + " "
 
     if current_text.strip():
         chapters.append(Chapter(title=current_title, text=current_text.strip()))
 
     if not chapters:
-        full_text = "\n".join(page.get_text() for page in doc)
+        full_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
         chapters = [Chapter(title="Full Text", text=full_text)]
 
-    doc.close()
+    pdf.close()
     word_count = sum(len(ch.text.split()) for ch in chapters)
     return BookContent(title=title, chapters=chapters, word_count=word_count)
 
