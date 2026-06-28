@@ -4,6 +4,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
+from defusedxml import ElementTree as DefusedElementTree
 
 import pdfplumber
 from bs4 import BeautifulSoup
@@ -67,11 +68,11 @@ def extract_from_pdf(file_bytes: bytes) -> BookContent:
 
 def _epub_spine_hrefs(zf: zipfile.ZipFile) -> tuple[str, list[str]]:
     """Parse the OPF to get the book title and spine-ordered content hrefs."""
-    container = ElementTree.fromstring(zf.read("META-INF/container.xml"))
+    container = DefusedElementTree.fromstring(zf.read("META-INF/container.xml"))
     ns = {"c": "urn:oasis:names:tc:opendocument:xmlns:container"}
     rootfile_path = container.find(".//c:rootfile", ns).get("full-path")
 
-    opf = ElementTree.fromstring(zf.read(rootfile_path))
+    opf = DefusedElementTree.fromstring(zf.read(rootfile_path))
     opf_ns = {"opf": "http://www.idpf.org/2007/opf", "dc": "http://purl.org/dc/elements/1.1/"}
     opf_dir = rootfile_path.rsplit("/", 1)[0] + "/" if "/" in rootfile_path else ""
 
