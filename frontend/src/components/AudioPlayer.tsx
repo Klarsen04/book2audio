@@ -37,9 +37,27 @@ export default function AudioPlayer({
   const [showVolume, setShowVolume] = useState(false);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string>("");
+  const [audioLoading, setAudioLoading] = useState(true);
   const lastSavedPosition = useRef(0);
 
-  const audioUrl = `/api/download/${docId}`;
+  useEffect(() => {
+    setAudioLoading(true);
+    api
+      .get(`/api/download/${docId}`, { responseType: "blob" })
+      .then((res) => {
+        const url = URL.createObjectURL(res.data);
+        setAudioUrl(url);
+      })
+      .catch(() => {
+        setAudioUrl(`/api/download/${docId}`);
+      })
+      .finally(() => setAudioLoading(false));
+
+    return () => {
+      if (audioUrl.startsWith("blob:")) URL.revokeObjectURL(audioUrl);
+    };
+  }, [docId]);
 
   useEffect(() => {
     if (seekTarget !== null && seekTarget !== undefined && audioRef.current) {
@@ -344,7 +362,13 @@ export default function AudioPlayer({
         </button>
       </div>
 
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
+      {audioLoading && (
+        <div className="flex items-center justify-center py-2">
+          <div className="w-4 h-4 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
+          <span className="ml-2 text-xs text-gray-500">Loading audio...</span>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="mb-6">
