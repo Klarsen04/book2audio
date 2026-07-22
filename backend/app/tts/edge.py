@@ -1,6 +1,9 @@
-import asyncio
 import io
+import os
+import logging
 from pydub import AudioSegment
+
+logger = logging.getLogger(__name__)
 
 VOICES = {
     "Matthew": {"id": "en-US-GuyNeural", "gender": "Male", "engine": "edge"},
@@ -14,6 +17,9 @@ VOICES = {
 }
 
 MAX_CHARS = 5000
+
+# On cloud servers, edge-tts is blocked by Microsoft. Use gTTS by default.
+USE_EDGE = os.environ.get("FORCE_EDGE_TTS", "").lower() == "true"
 
 
 def _split_text(text: str) -> list[str]:
@@ -32,16 +38,6 @@ def _split_text(text: str) -> list[str]:
     return chunks
 
 
-async def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
-    import edge_tts
-    communicate = edge_tts.Communicate(text, voice_id)
-    audio_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_data += chunk["data"]
-    return audio_data
-
-
 def _synthesize_chunk_gtts(text: str) -> bytes:
     from gtts import gTTS
     tts = gTTS(text=text, lang='en')
@@ -49,6 +45,22 @@ def _synthesize_chunk_gtts(text: str) -> bytes:
     tts.write_to_fp(buf)
     buf.seek(0)
     return buf.read()
+
+
+def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
+    import asyncio
+    import edge_tts
+    communicate = edge_tts.Communicate(text, voice_id)
+    audio_data = b""
+
+    async def _stream():
+        nonlocal audio_data
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
+
+    asyncio.run(_stream())
+    return audio_data
 
 
 def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> bytes:
@@ -60,17 +72,17 @@ def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> by
     for i, chunk in enumerate(chunks):
         audio_bytes = None
 
-        # Try edge-tts first, fall back to gTTS
-        try:
-            audio_bytes = asyncio.run(_synthesize_chunk_edge(chunk, voice_id))
-        except Exception:
-            pass
+        if USE_EDGE:
+            try:
+                audio_bytes = _synthesize_chunk_edge(chunk, voice_id)
+            except Exception as e:
+                logger.warning(f"edge-tts failed, falling back to gTTS: {e}")
 
         if not audio_bytes:
             try:
                 audio_bytes = _synthesize_chunk_gtts(chunk)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"gTTS also failed: {e}")
 
         if audio_bytes:
             segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
