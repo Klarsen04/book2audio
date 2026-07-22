@@ -86,7 +86,7 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
   }, [doc.id, doc.status, doc.audio_duration]);
 
   return (
-    <div className="group glass rounded-2xl p-5 flex flex-col justify-between hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)]">
+    <div className="group glass rounded-2xl p-5 flex flex-col justify-between hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300 hover-lift">
       <div>
         <div className="flex items-start justify-between mb-4">
           <span className="text-3xl">{formatIcons[doc.format] || "📄"}</span>

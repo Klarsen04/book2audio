@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import api from "@/lib/api";
 import { motion } from "framer-motion";
+import { fireConfetti } from "./Confetti";
 
 interface Props {
   jobId: string;
@@ -56,6 +57,7 @@ export default function ConversionPanel({
         if (res.data.status === "completed") {
           clearInterval(interval);
           setIsConverting(false);
+          fireConfetti();
           onConversionComplete();
         } else if (res.data.status === "error") {
           clearInterval(interval);

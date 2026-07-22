@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import ParticleField from "@/components/ParticleField";
+import TypeWriter from "@/components/TypeWriter";
+import MagneticButton from "@/components/MagneticButton";
+import MiniSpectrum from "@/components/MiniSpectrum";
+import TiltCard from "@/components/TiltCard";
 
 function AudioSample({
   src,
@@ -53,11 +58,11 @@ function AudioSample({
   }, []);
 
   return (
-    <div className="glass rounded-xl p-4 flex items-center gap-4 hover:bg-white/[0.05] transition-all group">
+    <div className={`glass rounded-xl p-4 flex items-center gap-4 hover:bg-white/[0.05] transition-all group ${playing ? "border-purple-500/30 bg-purple-500/5" : ""}`}>
       <audio ref={audioRef} src={src} preload="metadata" />
       <button
         onClick={toggle}
-        className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shrink-0 hover:scale-110 transition-transform active:scale-95"
+        className={`relative w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shrink-0 hover:scale-110 transition-transform active:scale-95 ${playing ? "pulse-ring" : ""}`}
       >
         {playing ? (
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -72,12 +77,16 @@ function AudioSample({
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white truncate">{label}</p>
         <p className="text-xs text-gray-500">{sublabel}</p>
-        <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-200"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        {playing ? (
+          <MiniSpectrum isPlaying={playing} barCount={16} />
+        ) : (
+          <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-200"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -98,8 +107,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background gradient orbs */}
+      {/* Background */}
       <div className="absolute inset-0 pointer-events-none">
+        <ParticleField />
         <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-purple-600/10 blur-[120px] animate-float" />
         <div className="absolute top-[20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[120px] animate-float-slow" />
         <div className="absolute bottom-[-10%] left-[30%] w-[400px] h-[400px] rounded-full bg-emerald-600/8 blur-[100px] animate-float" />
@@ -141,8 +151,10 @@ export default function Home() {
             </motion.div>
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
-              Listen to your books.{" "}
-              <span className="gradient-text">Naturally.</span>
+              Listen to your{" "}
+              <span className="gradient-text">
+                <TypeWriter words={["books", "PDFs", "papers", "notes", "docs"]} />
+              </span>
             </h1>
 
             <p className="text-lg sm:text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto mb-10">
@@ -156,12 +168,12 @@ export default function Home() {
               transition={{ delay: 0.3, duration: 0.5 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4"
             >
-              <Link
-                href="/register"
-                className="px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold text-base hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] active:scale-[0.98]"
+              <MagneticButton
+                onClick={() => { window.location.href = "/register"; }}
+                className="px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold text-base hover:from-purple-500 hover:to-blue-500 transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] animate-gradient bg-[length:200%_200%]"
               >
                 Add your first book
-              </Link>
+              </MagneticButton>
               <a
                 href="#demo"
                 className="px-8 py-3.5 rounded-full text-gray-300 font-medium text-base hover:text-white transition-colors"
@@ -169,6 +181,20 @@ export default function Home() {
                 Hear a demo →
               </a>
             </motion.div>
+          </motion.div>
+
+          {/* Scroll indicator */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 0.5 }}
+            className="mt-16 flex justify-center"
+          >
+            <a href="#demo" className="scroll-indicator text-gray-600 hover:text-gray-400 transition-colors">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </a>
           </motion.div>
         </section>
 
@@ -434,13 +460,14 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.08, duration: 0.5 }}
-                className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all group"
               >
-                <div className="text-3xl mb-4 group-hover:scale-110 transition-transform inline-block">
-                  {feature.icon}
-                </div>
-                <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
-                <p className="text-sm text-gray-400 leading-relaxed">{feature.desc}</p>
+                <TiltCard className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all group h-full">
+                  <div className="text-3xl mb-4 group-hover:scale-110 group-hover:rotate-3 transition-transform inline-block">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
+                  <p className="text-sm text-gray-400 leading-relaxed">{feature.desc}</p>
+                </TiltCard>
               </motion.div>
             ))}
           </div>

@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import SleepTimer from "./SleepTimer";
 import PlaybackSpeed from "./PlaybackSpeed";
 import Waveform from "./Waveform";
+import GradientBorder from "./GradientBorder";
 import { showToast } from "./Toast";
 
 interface Props {
@@ -298,10 +299,19 @@ export default function AudioPlayer({
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState(0);
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  return (
-    <div className="glass-strong rounded-2xl p-6 glow-purple">
+  const handleProgressHover = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    setHoverTime(x * duration);
+    setHoverX(e.clientX - rect.left);
+  };
+
+  const playerContent = (
+    <div className="p-6">
       {/* Title section */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4 min-w-0">
@@ -333,7 +343,11 @@ export default function AudioPlayer({
 
       {/* Progress bar */}
       <div className="mb-6">
-        <div className="relative group">
+        <div
+          className="relative group"
+          onMouseMove={handleProgressHover}
+          onMouseLeave={() => setHoverTime(null)}
+        >
           <input
             type="range"
             min={0}
@@ -342,7 +356,7 @@ export default function AudioPlayer({
             onChange={handleSeek}
             className="w-full relative z-10 opacity-0 cursor-pointer h-6"
           />
-          <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-white/[0.08] overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-white/[0.08] overflow-hidden pointer-events-none group-hover:h-2 transition-all">
             <div
               className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-100"
               style={{ width: `${progressPercent}%` }}
@@ -352,6 +366,14 @@ export default function AudioPlayer({
             className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_8px_rgba(139,92,246,0.5)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
             style={{ left: `calc(${progressPercent}% - 7px)` }}
           />
+          {hoverTime !== null && (
+            <div
+              className="absolute -top-8 px-2 py-1 glass-strong rounded text-[10px] text-white pointer-events-none -translate-x-1/2 transition-opacity"
+              style={{ left: hoverX }}
+            >
+              {formatTime(hoverTime)}
+            </div>
+          )}
         </div>
         <div className="flex justify-between text-xs text-gray-500 mt-2">
           <span>{formatTime(currentTime)}</span>
@@ -407,20 +429,43 @@ export default function AudioPlayer({
             </svg>
           </button>
 
-          <button
-            onClick={togglePlay}
-            className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-110 hover:shadow-[0_0_25px_rgba(139,92,246,0.4)] active:scale-95"
-          >
-            {isPlaying ? (
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            )}
-          </button>
+          <div className="relative">
+            {/* Progress ring */}
+            <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
+              <circle
+                cx="50%" cy="50%" r="30"
+                fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2"
+              />
+              <circle
+                cx="50%" cy="50%" r="30"
+                fill="none" stroke="url(#progress-gradient)" strokeWidth="2"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 30}`}
+                strokeDashoffset={`${2 * Math.PI * 30 * (1 - progressPercent / 100)}`}
+                className="transition-all duration-300"
+              />
+              <defs>
+                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="100%" stopColor="#60a5fa" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <button
+              onClick={togglePlay}
+              className="relative w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-110 hover:shadow-[0_0_25px_rgba(139,92,246,0.4)] active:scale-95"
+            >
+              {isPlaying ? (
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+          </div>
 
           <button
             onClick={() => skip(30)}
@@ -445,4 +490,10 @@ export default function AudioPlayer({
       </div>
     </div>
   );
+
+  if (isPlaying) {
+    return <GradientBorder animate>{playerContent}</GradientBorder>;
+  }
+
+  return <div className="glass-strong rounded-2xl">{playerContent}</div>;
 }

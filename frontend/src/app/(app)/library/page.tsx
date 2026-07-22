@@ -5,6 +5,7 @@ import Link from "next/link";
 import api from "@/lib/api";
 import LibraryCard from "@/components/LibraryCard";
 import { motion, AnimatePresence } from "framer-motion";
+import AnimatedCounter from "@/components/AnimatedCounter";
 
 interface Document {
   id: string;
@@ -134,16 +135,24 @@ export default function LibraryPage() {
           className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8"
         >
           {[
-            { label: "Books", value: String(stats.total), icon: "📚" },
-            { label: "Converted", value: String(stats.completed), icon: "✅" },
-            { label: "Total Audio", value: stats.totalDuration > 0 ? formatDuration(stats.totalDuration) : "—", icon: "🎧" },
-            { label: "Words", value: stats.totalWords > 0 ? `${(stats.totalWords / 1000).toFixed(0)}k` : "—", icon: "📝" },
-          ].map((stat) => (
-            <div key={stat.label} className="glass rounded-xl p-4 text-center">
+            { label: "Books", value: stats.total, icon: "📚", suffix: "" },
+            { label: "Converted", value: stats.completed, icon: "✅", suffix: "" },
+            { label: "Audio (min)", value: stats.totalDuration > 0 ? Math.floor(stats.totalDuration / 60) : 0, icon: "🎧", suffix: "m" },
+            { label: "Words", value: stats.totalWords > 0 ? Math.floor(stats.totalWords / 1000) : 0, icon: "📝", suffix: "k" },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.08 }}
+              className="glass rounded-xl p-4 text-center hover-lift"
+            >
               <div className="text-2xl mb-1">{stat.icon}</div>
-              <div className="text-lg font-bold text-white">{stat.value}</div>
+              <div className="text-lg font-bold text-white">
+                {stat.value > 0 ? <AnimatedCounter end={stat.value} suffix={stat.suffix} duration={1.5} /> : "—"}
+              </div>
               <div className="text-xs text-gray-500">{stat.label}</div>
-            </div>
+            </motion.div>
           ))}
         </motion.div>
       )}
