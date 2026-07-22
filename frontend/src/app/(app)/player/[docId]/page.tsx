@@ -10,6 +10,7 @@ import Bookmarks from "@/components/Bookmarks";
 import StudyTimer from "@/components/StudyTimer";
 import HighlightsPanel from "@/components/Highlights";
 import NotesPanel from "@/components/NotesPanel";
+import FlashcardsView from "@/components/Flashcards";
 import { setNowPlaying } from "@/components/NowPlaying";
 import { motion } from "framer-motion";
 
@@ -39,7 +40,7 @@ export default function PlayerPage() {
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<"reader" | "notes" | "none">("reader");
+  const [activeTab, setActiveTab] = useState<"reader" | "notes" | "flashcards" | "none">("reader");
   const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
@@ -215,7 +216,7 @@ export default function PlayerPage() {
             Share
           </button>
           <div className="flex items-center gap-1 bg-white/[0.03] rounded-xl p-1 border border-white/[0.06]">
-            {(["reader", "notes", "none"] as const).map((tab) => (
+            {(["reader", "notes", "flashcards", "none"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -326,6 +327,17 @@ export default function PlayerPage() {
           transition={{ duration: 0.3 }}
         >
           <NotesPanel docId={docId} />
+        </motion.div>
+      )}
+
+      {activeTab === "flashcards" && (
+        <motion.div
+          key="flashcards"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <FlashcardsView docId={docId} />
         </motion.div>
       )}
     </motion.div>
