@@ -1,6 +1,6 @@
-fastapi[standard]>=0.135.0
-uvicorn[standard]>=0.27.0
-python-multipart>=0.0.20
+fastapi==0.115.6
+uvicorn[standard]==0.27.0
+python-multipart>=0.0.7
 boto3>=1.34.0
 pdfplumber>=0.11.0
 pdfminer.six>=20231228
@@ -10,6 +10,7 @@ pydub>=0.25.1
 PyJWT>=2.8.0
 bcrypt>=4.1.0
 httpx>=0.26.0
+pydantic>=2.5.0
 certifi>=2024.7.4
 edge-tts>=7.0.0
 gTTS>=2.5.0
