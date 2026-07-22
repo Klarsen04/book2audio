@@ -46,6 +46,18 @@ def startup():
     init_db()
 
 
+@app.get("/api/health")
+async def health_check():
+    has_gtts = False
+    try:
+        import gtts
+        has_gtts = True
+    except ImportError:
+        pass
+    from app.tts.edge import USE_EDGE
+    return {"status": "ok", "has_gtts": has_gtts, "use_edge": USE_EDGE}
+
+
 @app.get("/api/voices")
 async def get_voices():
     return {"voices": get_voices_fn()()}
