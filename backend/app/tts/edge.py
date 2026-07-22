@@ -1,7 +1,6 @@
 import asyncio
 import io
 from pydub import AudioSegment
-import edge_tts
 
 VOICES = {
     "Matthew": {"id": "en-US-GuyNeural", "gender": "Male", "engine": "edge"},
@@ -33,13 +32,23 @@ def _split_text(text: str) -> list[str]:
     return chunks
 
 
-async def _synthesize_chunk(text: str, voice_id: str) -> bytes:
+async def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
+    import edge_tts
     communicate = edge_tts.Communicate(text, voice_id)
     audio_data = b""
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             audio_data += chunk["data"]
     return audio_data
+
+
+def _synthesize_chunk_gtts(text: str) -> bytes:
+    from gtts import gTTS
+    tts = gTTS(text=text, lang='en')
+    buf = io.BytesIO()
+    tts.write_to_fp(buf)
+    buf.seek(0)
+    return buf.read()
 
 
 def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> bytes:
@@ -49,10 +58,24 @@ def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> by
     combined = AudioSegment.empty()
 
     for i, chunk in enumerate(chunks):
-        audio_bytes = asyncio.run(_synthesize_chunk(chunk, voice_id))
+        audio_bytes = None
+
+        # Try edge-tts first, fall back to gTTS
+        try:
+            audio_bytes = asyncio.run(_synthesize_chunk_edge(chunk, voice_id))
+        except Exception:
+            pass
+
+        if not audio_bytes:
+            try:
+                audio_bytes = _synthesize_chunk_gtts(chunk)
+            except Exception:
+                pass
+
         if audio_bytes:
             segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
             combined += segment
+
         if on_progress:
             on_progress(i + 1, len(chunks))
 
