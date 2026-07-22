@@ -242,7 +242,7 @@ export default function ConversionPanel({
           </div>
           <p className="text-xs text-gray-500 mt-3">
             {progress > 0 && progress < 100
-              ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * (chapters.length * 0.5))} min remaining`
+              ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * 0.5)} min remaining`
               : "This may take a few minutes depending on book length."}
           </p>
         </motion.div>
