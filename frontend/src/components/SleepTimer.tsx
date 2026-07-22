@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   onTimerEnd: () => void;
@@ -68,8 +69,10 @@ export default function SleepTimer({ onTimerEnd, onFadeStart }: Props) {
     <div className="relative">
       <button
         onClick={() => (remaining ? cancelTimer() : setIsOpen(!isOpen))}
-        className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-          remaining ? "bg-purple-900/50 text-purple-300" : "text-gray-400 hover:text-white"
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all font-medium ${
+          remaining
+            ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
+            : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
         }`}
         title={remaining ? "Cancel timer" : "Sleep timer"}
       >
@@ -79,22 +82,30 @@ export default function SleepTimer({ onTimerEnd, onFadeStart }: Props) {
         {remaining ? formatRemaining(remaining) : "Sleep"}
       </button>
 
-      {isOpen && !remaining && (
-        <div className="absolute bottom-full mb-2 left-0 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl">
-          <p className="text-xs text-gray-400 mb-2 px-1">Stop playing after:</p>
-          <div className="flex gap-1">
-            {PRESETS.map((p) => (
-              <button
-                key={p.minutes}
-                onClick={() => startTimer(p.minutes)}
-                className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded transition-colors"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isOpen && !remaining && (
+          <motion.div
+            initial={{ opacity: 0, y: 5, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 5, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full mb-3 left-0 glass-strong rounded-xl p-3 shadow-2xl"
+          >
+            <p className="text-xs text-gray-400 mb-2.5 px-1 font-medium">Stop playing after:</p>
+            <div className="flex gap-1.5">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.minutes}
+                  onClick={() => startTimer(p.minutes)}
+                  className="px-3.5 py-2 text-xs bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.1] rounded-lg transition-all font-medium"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

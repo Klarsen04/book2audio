@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import AudioPlayer from "@/components/AudioPlayer";
 import ReaderView from "@/components/ReaderView";
+import Bookmarks from "@/components/Bookmarks";
+import { setNowPlaying } from "@/components/NowPlaying";
+import { motion } from "framer-motion";
 
 interface Chapter {
   title: string;
@@ -25,6 +28,7 @@ interface Document {
 
 export default function PlayerPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const docId = params.docId as string;
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,14 +37,21 @@ export default function PlayerPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
   const [showReader, setShowReader] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     api
       .get(`/api/library/${docId}`)
-      .then((res) => setDocument(res.data.document))
+      .then((res) => {
+        setDocument(res.data.document);
+        const t = searchParams.get("t");
+        if (t) {
+          setSeekTarget(parseInt(t, 10));
+        }
+      })
       .catch(() => setError("Document not found"))
       .finally(() => setLoading(false));
-  }, [docId]);
+  }, [docId, searchParams]);
 
   const handleChapterSelect = (index: number) => {
     if (!document) return;
@@ -48,10 +59,8 @@ export default function PlayerPage() {
 
     let seekTime: number;
     if (chapter.start_time !== undefined) {
-      // Use exact timestamp recorded during conversion
       seekTime = chapter.start_time;
     } else {
-      // Fallback: estimate from word counts
       const chapters = document.chapters;
       const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
       const wordsBeforeChapter = chapters.slice(0, index).reduce((sum, ch) => sum + ch.word_count, 0);
@@ -67,7 +76,6 @@ export default function PlayerPage() {
     const chapters = document.chapters;
     const chapter = chapters[chapterIndex];
 
-    // Get chapter start and end times
     const chapterStart = chapter.start_time !== undefined
       ? chapter.start_time
       : (chapters.slice(0, chapterIndex).reduce((s, c) => s + c.word_count, 0) / chapters.reduce((s, c) => s + c.word_count, 0)) * (document.audio_duration || 0);
@@ -79,7 +87,6 @@ export default function PlayerPage() {
 
     const chapterDuration = chapterEnd - chapterStart;
 
-    // Find where in the chapter text the selection is
     if (chapter.text) {
       const textPosition = chapter.text.indexOf(selectedText);
       if (textPosition !== -1) {
@@ -92,19 +99,19 @@ export default function PlayerPage() {
       }
     }
 
-    // Fallback: just play from chapter start
     setSeekTarget(chapterStart);
     setCurrentChapterIndex(chapterIndex);
   };
 
   const handleTimeUpdate = useCallback(
-    (currentTime: number) => {
+    (time: number) => {
+      setCurrentTime(time);
       if (!document) return;
+      const currentTime = time;
       const chapters = document.chapters;
       const hasTimestamps = chapters[0]?.start_time !== undefined;
 
       if (hasTimestamps) {
-        // Use exact timestamps — find last chapter whose start_time <= currentTime
         let activeIndex = 0;
         for (let i = 0; i < chapters.length; i++) {
           if ((chapters[i].start_time ?? 0) <= currentTime) {
@@ -115,7 +122,6 @@ export default function PlayerPage() {
         }
         if (activeIndex !== currentChapterIndex) setCurrentChapterIndex(activeIndex);
       } else {
-        // Fallback: word count estimate
         if (!document.audio_duration) return;
         const fraction = currentTime / document.audio_duration;
         const totalWords = chapters.reduce((sum, ch) => sum + ch.word_count, 0);
@@ -132,35 +138,88 @@ export default function PlayerPage() {
     [document, currentChapterIndex]
   );
 
-  if (loading) return <p className="text-gray-400 text-center py-12">Loading...</p>;
-  if (error) return <p className="text-red-400 text-center py-12">{error}</p>;
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="h-6 w-32 bg-white/5 rounded animate-pulse" />
+        <div className="glass rounded-2xl h-48 animate-pulse" />
+        <div className="glass rounded-2xl h-96 animate-pulse" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-20">
+        <div className="text-5xl mb-4">😕</div>
+        <p className="text-red-300 mb-4">{error}</p>
+        <Link href="/library" className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+          ← Back to library
+        </Link>
+      </div>
+    );
+  }
+
   if (!document) return null;
 
   if (document.status !== "completed") {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-400">This document hasn&apos;t been converted yet.</p>
-        <Link href="/library" className="text-purple-400 hover:text-purple-300 text-sm mt-2 inline-block">
-          Back to library
+      <div className="text-center py-20">
+        <div className="text-5xl mb-4">⏳</div>
+        <p className="text-gray-400 mb-4">This document hasn&apos;t been converted yet.</p>
+        <Link href="/library" className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+          ← Back to library
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="max-w-4xl mx-auto space-y-6"
+    >
       <div className="flex items-center justify-between">
-        <Link href="/library" className="text-gray-400 hover:text-white text-sm flex items-center gap-1">
-          ← Back to library
-        </Link>
-        <button
-          onClick={() => setShowReader(!showReader)}
-          className={`text-sm px-3 py-1 rounded-lg transition-colors ${
-            showReader ? "bg-purple-600/30 text-purple-300" : "text-gray-400 hover:text-white"
-          }`}
+        <Link
+          href="/library"
+          className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 group"
         >
-          {showReader ? "Hide Reader" : "Show Reader"}
-        </button>
+          <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
+          Back to library
+        </Link>
+        <div className="flex items-center gap-3">
+          <Bookmarks
+            docId={docId}
+            currentTime={currentTime}
+            onSeek={(time) => setSeekTarget(time)}
+          />
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/player/${docId}?t=${Math.floor(currentTime)}`;
+              navigator.clipboard.writeText(url);
+              import("@/components/Toast").then(({ showToast }) => showToast("Link copied!"));
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+            title="Copy link with timestamp"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            Share
+          </button>
+          <button
+            onClick={() => setShowReader(!showReader)}
+            className={`text-sm px-4 py-2 rounded-xl transition-all ${
+              showReader
+                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
+                : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            {showReader ? "Hide Reader" : "Show Reader"}
+          </button>
+        </div>
       </div>
 
       <AudioPlayer
@@ -169,19 +228,84 @@ export default function PlayerPage() {
         chapters={document.chapters}
         seekTarget={seekTarget}
         onSeekHandled={() => setSeekTarget(null)}
-        onPlayingChange={setIsPlaying}
+        onPlayingChange={(playing) => {
+          setIsPlaying(playing);
+          setNowPlaying({ docId, title: document.title, isPlaying: playing });
+        }}
         onTimeUpdate={handleTimeUpdate}
       />
 
-      {showReader && (
-        <ReaderView
-          chapters={document.chapters}
-          currentChapterIndex={currentChapterIndex}
-          onChapterSelect={handleChapterSelect}
-          onPlayFromText={handlePlayFromText}
-          isPlaying={isPlaying}
-        />
+      {/* Chapter progress mini-map */}
+      {document.chapters.length > 1 && (
+        <div className="glass rounded-xl p-4">
+          <div className="flex items-center gap-1">
+            {document.chapters.map((ch, i) => {
+              const isComplete = i < currentChapterIndex;
+              const isCurrent = i === currentChapterIndex;
+              const progress = isCurrent
+                ? (() => {
+                    if (!document.audio_duration) return 0;
+                    const chStart = ch.start_time ?? 0;
+                    const chEnd = document.chapters[i + 1]?.start_time ?? document.audio_duration;
+                    const chDuration = chEnd - chStart;
+                    return chDuration > 0 ? ((currentTime - chStart) / chDuration) * 100 : 0;
+                  })()
+                : isComplete ? 100 : 0;
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleChapterSelect(i)}
+                  className="flex-1 group relative"
+                  title={ch.title}
+                >
+                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        isComplete ? "bg-emerald-500/60" : isCurrent ? "bg-gradient-to-r from-purple-500 to-blue-500" : ""
+                      }`}
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 glass-strong rounded text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    {ch.title}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-between mt-2">
+            <span className="text-[10px] text-gray-600">Ch. 1</span>
+            <span className="text-[10px] text-gray-500 font-medium">
+              Chapter {currentChapterIndex + 1} of {document.chapters.length}
+            </span>
+            <span className="text-[10px] text-gray-600">Ch. {document.chapters.length}</span>
+          </div>
+        </div>
       )}
-    </div>
+
+      {showReader && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <ReaderView
+            chapters={document.chapters}
+            currentChapterIndex={currentChapterIndex}
+            onChapterSelect={handleChapterSelect}
+            onPlayFromText={handlePlayFromText}
+            isPlaying={isPlaying}
+            chapterProgress={(() => {
+              if (!document.audio_duration) return 0;
+              const ch = document.chapters;
+              const chStart = ch[currentChapterIndex]?.start_time ?? 0;
+              const chEnd = ch[currentChapterIndex + 1]?.start_time ?? document.audio_duration;
+              const chDuration = chEnd - chStart;
+              return chDuration > 0 ? (currentTime - chStart) / chDuration : 0;
+            })()}
+          />
+        </motion.div>
+      )}
+    </motion.div>
   );
 }

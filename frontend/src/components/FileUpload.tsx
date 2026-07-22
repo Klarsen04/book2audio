@@ -2,6 +2,7 @@
 
 import { useState, useRef, DragEvent } from "react";
 import api from "@/lib/api";
+import { motion } from "framer-motion";
 
 interface Props {
   onUploadComplete: (result: any) => void;
@@ -48,21 +49,31 @@ export default function FileUpload({ onUploadComplete }: Props) {
     if (selected) validateAndSetFile(selected);
   };
 
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   const handleUpload = async () => {
     if (!file) return;
     setIsUploading(true);
     setError(null);
+    setUploadProgress(0);
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      const response = await api.post("/api/upload", formData);
+      const response = await api.post("/api/upload", formData, {
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+          }
+        },
+      });
       onUploadComplete(response.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Upload failed. Please try again.");
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -73,16 +84,16 @@ export default function FileUpload({ onUploadComplete }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
+        className={`relative glass rounded-2xl p-16 text-center cursor-pointer transition-all duration-300 group ${
           isDragging
-            ? "border-purple-500 bg-purple-500/10"
-            : "border-gray-700 hover:border-gray-500 hover:bg-gray-900/50"
+            ? "border-purple-500/50 bg-purple-500/5 scale-[1.01]"
+            : "hover:bg-white/[0.04] hover:border-white/10 hover:scale-[1.005]"
         }`}
       >
         <input
@@ -92,48 +103,76 @@ export default function FileUpload({ onUploadComplete }: Props) {
           onChange={handleFileSelect}
           className="hidden"
         />
-        <div className="text-5xl mb-4">📚</div>
-        <p className="text-lg text-gray-300">
-          Drag & drop your book here, or <span className="text-purple-400 underline">browse</span>
+
+        <motion.div
+          animate={isDragging ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="text-6xl mb-6"
+        >
+          📚
+        </motion.div>
+
+        <p className="text-lg text-gray-200 font-medium mb-2">
+          Drag & drop your book here
         </p>
-        <p className="text-sm text-gray-500 mt-2">
-          Supports PDF, EPUB, DOCX, and TXT files
+        <p className="text-sm text-gray-500">
+          or <span className="text-purple-400 group-hover:text-purple-300 transition-colors">browse files</span>
         </p>
+
+        <div className="flex items-center justify-center gap-3 mt-6">
+          {["PDF", "EPUB", "DOCX", "TXT"].map((fmt) => (
+            <span
+              key={fmt}
+              className="px-3 py-1 text-xs font-medium text-gray-500 bg-white/[0.04] rounded-full border border-white/[0.06]"
+            >
+              {fmt}
+            </span>
+          ))}
+        </div>
       </div>
 
       {file && (
-        <div className="bg-gray-900 rounded-lg p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">📄</div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-strong rounded-2xl p-5 flex items-center justify-between"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-2xl">
+              📄
+            </div>
             <div>
-              <p className="text-gray-200 font-medium">{file.name}</p>
-              <p className="text-sm text-gray-500">{formatSize(file.size)}</p>
+              <p className="text-gray-200 font-medium text-sm">{file.name}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{formatSize(file.size)}</p>
             </div>
           </div>
           <button
             onClick={handleUpload}
             disabled={isUploading}
-            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg font-medium hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
           >
             {isUploading ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Processing...
+                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                {uploadProgress > 0 && uploadProgress < 100
+                  ? `Uploading ${uploadProgress}%`
+                  : "Analyzing..."}
               </span>
             ) : (
               "Upload & Analyze"
             )}
           </button>
-        </div>
+        </motion.div>
       )}
 
       {error && (
-        <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-red-300 text-sm">
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300 text-sm"
+        >
           {error}
-        </div>
+        </motion.div>
       )}
     </div>
   );
