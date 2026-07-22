@@ -35,6 +35,8 @@ export default function AudioPlayer({
   const [positionLoaded, setPositionLoaded] = useState(false);
   const [volume, setVolume] = useState(1);
   const [showVolume, setShowVolume] = useState(false);
+  const [loopA, setLoopA] = useState<number | null>(null);
+  const [loopB, setLoopB] = useState<number | null>(null);
   const lastSavedPosition = useRef(0);
 
   const audioUrl = `/api/download/${docId}`;
@@ -155,6 +157,9 @@ export default function AudioPlayer({
     const updateTime = () => {
       setCurrentTime(audio.currentTime);
       onTimeUpdate?.(audio.currentTime);
+      if (loopA !== null && loopB !== null && audio.currentTime >= loopB) {
+        audio.currentTime = loopA;
+      }
     };
     const updateDuration = () => {
       setDuration(audio.duration);
@@ -385,6 +390,32 @@ export default function AudioPlayer({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SleepTimer onTimerEnd={handleSleepEnd} onFadeStart={handleFadeStart} />
+          {/* A-B Loop */}
+          <button
+            onClick={() => {
+              if (loopA === null) {
+                setLoopA(currentTime);
+                showToast(`Loop A set at ${formatTime(currentTime)}`);
+              } else if (loopB === null) {
+                setLoopB(currentTime);
+                showToast(`Looping ${formatTime(loopA)} → ${formatTime(currentTime)}`);
+              } else {
+                setLoopA(null);
+                setLoopB(null);
+                showToast("Loop cleared");
+              }
+            }}
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              loopA !== null
+                ? "bg-orange-600/20 text-orange-300 border border-orange-500/30"
+                : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+            }`}
+            title={loopA === null ? "Set loop start (A)" : loopB === null ? "Set loop end (B)" : "Clear loop"}
+          >
+            <span className="font-bold">A-B</span>
+            {loopA !== null && loopB === null && <span className="text-[10px]">A✓</span>}
+            {loopA !== null && loopB !== null && <span className="text-[10px]">∞</span>}
+          </button>
           {/* Volume */}
           <div className="relative">
             <button

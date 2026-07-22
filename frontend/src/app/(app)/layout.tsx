@@ -5,6 +5,7 @@ import ToastProvider from "@/components/Toast";
 import NowPlayingBar from "@/components/NowPlaying";
 import ConfettiProvider from "@/components/Confetti";
 import FloatingUpload from "@/components/FloatingUpload";
+import CommandPalette from "@/components/CommandPalette";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,6 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="relative z-10 max-w-6xl mx-auto px-6 py-8 pb-24">{children}</main>
       <FloatingUpload />
       <NowPlayingBar />
+      <CommandPalette />
       <ToastProvider />
       <ConfettiProvider />
     </div>

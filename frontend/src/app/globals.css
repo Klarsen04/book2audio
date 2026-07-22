@@ -111,6 +111,30 @@ input[type="range"]::-webkit-slider-thumb:hover {
   text-wrap: balance;
 }
 
+/* Focus mode */
+.focus-mode nav,
+.focus-mode .floating-upload {
+  opacity: 0.2;
+  transition: opacity 0.3s;
+}
+.focus-mode nav:hover,
+.focus-mode .floating-upload:hover {
+  opacity: 1;
+}
+
+/* Dyslexia-friendly mode */
+.dyslexia-mode .reader-text {
+  font-family: "OpenDyslexic", "Comic Sans MS", sans-serif !important;
+  letter-spacing: 0.05em;
+  word-spacing: 0.2em;
+  line-height: 2.2 !important;
+  max-width: 60ch;
+}
+
+.dyslexia-mode .reader-content {
+  background: rgba(255, 248, 220, 0.03);
+}
+
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradient-shift 3s ease infinite;

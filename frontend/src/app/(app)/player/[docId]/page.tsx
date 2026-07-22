@@ -7,6 +7,9 @@ import api from "@/lib/api";
 import AudioPlayer from "@/components/AudioPlayer";
 import ReaderView from "@/components/ReaderView";
 import Bookmarks from "@/components/Bookmarks";
+import StudyTimer from "@/components/StudyTimer";
+import HighlightsPanel from "@/components/Highlights";
+import NotesPanel from "@/components/NotesPanel";
 import { setNowPlaying } from "@/components/NowPlaying";
 import { motion } from "framer-motion";
 
@@ -36,7 +39,7 @@ export default function PlayerPage() {
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
-  const [showReader, setShowReader] = useState(true);
+  const [activeTab, setActiveTab] = useState<"reader" | "notes" | "none">("reader");
   const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
@@ -189,12 +192,14 @@ export default function PlayerPage() {
           <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
           Back to library
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <StudyTimer />
           <Bookmarks
             docId={docId}
             currentTime={currentTime}
             onSeek={(time) => setSeekTarget(time)}
           />
+          <HighlightsPanel docId={docId} />
           <button
             onClick={() => {
               const url = `${window.location.origin}/player/${docId}?t=${Math.floor(currentTime)}`;
@@ -209,16 +214,21 @@ export default function PlayerPage() {
             </svg>
             Share
           </button>
-          <button
-            onClick={() => setShowReader(!showReader)}
-            className={`text-sm px-4 py-2 rounded-xl transition-all ${
-              showReader
-                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
-                : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
-            }`}
-          >
-            {showReader ? "Hide Reader" : "Show Reader"}
-          </button>
+          <div className="flex items-center gap-1 bg-white/[0.03] rounded-xl p-1 border border-white/[0.06]">
+            {(["reader", "notes", "none"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`text-xs px-3 py-1.5 rounded-lg transition-all font-medium ${
+                  activeTab === tab
+                    ? "bg-purple-600/20 text-purple-300"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {tab === "none" ? "Minimal" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -283,8 +293,9 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {showReader && (
+      {activeTab === "reader" && (
         <motion.div
+          key="reader"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -304,6 +315,17 @@ export default function PlayerPage() {
               return chDuration > 0 ? (currentTime - chStart) / chDuration : 0;
             })()}
           />
+        </motion.div>
+      )}
+
+      {activeTab === "notes" && (
+        <motion.div
+          key="notes"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <NotesPanel docId={docId} />
         </motion.div>
       )}
     </motion.div>

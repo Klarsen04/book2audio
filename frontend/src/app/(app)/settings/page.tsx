@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const [defaultSpeed, setDefaultSpeed] = useState(1);
   const [defaultVoice, setDefaultVoice] = useState("Joanna");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [dyslexiaMode, setDyslexiaMode] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -16,12 +17,20 @@ export default function SettingsPage() {
     if (voice) setDefaultVoice(voice);
     const scroll = localStorage.getItem("auto_scroll");
     if (scroll !== null) setAutoScroll(scroll === "true");
+    const dyslexia = localStorage.getItem("dyslexia_mode");
+    if (dyslexia !== null) setDyslexiaMode(dyslexia === "true");
   }, []);
 
   const handleSave = () => {
     localStorage.setItem("playback_speed", String(defaultSpeed));
     localStorage.setItem("default_voice", defaultVoice);
     localStorage.setItem("auto_scroll", String(autoScroll));
+    localStorage.setItem("dyslexia_mode", String(dyslexiaMode));
+    if (dyslexiaMode) {
+      document.documentElement.classList.add("dyslexia-mode");
+    } else {
+      document.documentElement.classList.remove("dyslexia-mode");
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -97,6 +106,25 @@ export default function SettingsPage() {
                 <div
                   className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
                     autoScroll ? "left-6" : "left-1"
+                  }`}
+                />
+              </button>
+            </label>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-sm text-gray-300">Dyslexia-friendly reader</p>
+                <p className="text-xs text-gray-500">Wider spacing, larger text, and a dyslexia-optimized font</p>
+              </div>
+              <button
+                onClick={() => setDyslexiaMode(!dyslexiaMode)}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  dyslexiaMode ? "bg-purple-600" : "bg-white/[0.1]"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    dyslexiaMode ? "left-6" : "left-1"
                   }`}
                 />
               </button>
