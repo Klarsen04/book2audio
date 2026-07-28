@@ -60,14 +60,9 @@ export default function AudioPlayer({
   }, [docId]);
 
   useEffect(() => {
-    if (seekTarget !== null && seekTarget !== undefined && audioRef.current) {
+    if (seekTarget !== null && seekTarget !== undefined && audioRef.current && audioUrl) {
       audioRef.current.currentTime = seekTarget;
       setCurrentTime(seekTarget);
-      if (!isPlaying) {
-        audioRef.current.play();
-        setIsPlaying(true);
-        onPlayingChange?.(true);
-      }
       onSeekHandled?.();
     }
   }, [seekTarget]);
@@ -204,7 +199,7 @@ export default function AudioPlayer({
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [positionLoaded, savePosition, onTimeUpdate, onPlayingChange]);
+  }, [audioUrl, positionLoaded, savePosition, onTimeUpdate, onPlayingChange]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -248,17 +243,23 @@ export default function AudioPlayer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying, volume]);
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !audioUrl) return;
     if (isPlaying) {
       audio.pause();
       savePosition(audio.currentTime);
+      setIsPlaying(false);
+      onPlayingChange?.(false);
     } else {
-      audio.play();
+      try {
+        await audio.play();
+        setIsPlaying(true);
+        onPlayingChange?.(true);
+      } catch {
+        // Browser blocked playback
+      }
     }
-    setIsPlaying(!isPlaying);
-    onPlayingChange?.(!isPlaying);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -366,7 +367,7 @@ export default function AudioPlayer({
         </button>
       </div>
 
-      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
+      <audio ref={audioRef} src={audioUrl || undefined} preload="auto" />
       {audioLoading && (
         <div className="flex items-center justify-center py-2">
           <div className="w-4 h-4 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
