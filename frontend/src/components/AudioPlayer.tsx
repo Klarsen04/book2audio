@@ -30,6 +30,7 @@ export default function AudioPlayer({
   onEnded,
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -268,6 +269,17 @@ export default function AudioPlayer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPlaying, volume]);
 
+  useEffect(() => {
+    if (!showVolume) return;
+    const handleClick = (e: MouseEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) {
+        setShowVolume(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showVolume]);
+
   const togglePlay = async () => {
     const audio = audioRef.current;
     if (!audio || !audioUrl) return;
@@ -471,7 +483,7 @@ export default function AudioPlayer({
             {loopA !== null && loopB !== null && <span className="text-[10px]">∞</span>}
           </button>
           {/* Volume */}
-          <div className="relative">
+          <div className="relative" ref={volumeRef}>
             <button
               onClick={() => setShowVolume(!showVolume)}
               className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
