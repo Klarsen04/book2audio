@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head><title>Audio Debug</title></head>
+<body style="background:#111;color:#eee;font-family:monospace;padding:20px">
+<h2>Audio Debug Tool</h2>
+<div id="log"></div>
+<script>
+function log(msg) {
+  document.getElementById('log').innerHTML += msg + '<br>';
+  console.log(msg);
+}
+
+async function test() {
+  log('1. Fetching /api/auth/me to check auth...');
+  try {
+    const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+    log('   Auth: ' + JSON.stringify(me));
+  } catch(e) {
+    log('   Auth failed: ' + e.message);
+    return;
+  }
+
+  log('2. Fetching /api/library...');
+  const libRes = await fetch('/api/library', { credentials: 'include' });
+  const lib = await libRes.json();
+  const docs = lib.documents || [];
+  log('   Found ' + docs.length + ' documents');
+  
+  const completed = docs.find(d => d.status === 'completed');
+  if (!completed) {
+    log('   ERROR: No completed documents found');
+    return;
+  }
+  log('   Using doc: ' + completed.id + ' (' + completed.title + ')');
+
+  log('3. Fetching audio blob...');
+  const dlRes = await fetch('/api/download/' + completed.id, { credentials: 'include' });
+  log('   Status: ' + dlRes.status);
+  log('   Content-Type: ' + dlRes.headers.get('content-type'));
+  log('   Content-Length: ' + dlRes.headers.get('content-length'));
+  
+  const blob = await dlRes.blob();
+  log('   Blob size: ' + blob.size + ', type: "' + blob.type + '"');
+  
+  const url = URL.createObjectURL(blob);
+  log('   Blob URL: ' + url);
+
+  log('4. Creating audio element and playing...');
+  const audio = new Audio();
+  
+  audio.addEventListener('loadedmetadata', () => {
+    log('   EVENT loadedmetadata: duration=' + audio.duration);
+  });
+  audio.addEventListener('canplay', () => {
+    log('   EVENT canplay');
+  });
+  audio.addEventListener('playing', () => {
+    log('   EVENT playing');
+  });
+  audio.addEventListener('timeupdate', () => {
+    log('   EVENT timeupdate: currentTime=' + audio.currentTime.toFixed(2));
+  });
+  audio.addEventListener('error', (e) => {
+    log('   EVENT error: ' + audio.error?.message + ' code=' + audio.error?.code);
+  });
+  audio.addEventListener('stalled', () => {
+    log('   EVENT stalled');
+  });
+  audio.addEventListener('waiting', () => {
+    log('   EVENT waiting');
+  });
+  audio.addEventListener('suspend', () => {
+    log('   EVENT suspend');
+  });
+  
+  audio.src = url;
+  audio.volume = 1;
+  log('   Set src and volume=1, calling play()...');
+  
+  try {
+    await audio.play();
+    log('   play() resolved successfully');
+    log('   paused=' + audio.paused + ' volume=' + audio.volume + ' muted=' + audio.muted);
+    log('   currentTime=' + audio.currentTime + ' duration=' + audio.duration);
+    log('   readyState=' + audio.readyState + ' networkState=' + audio.networkState);
+  } catch(e) {
+    log('   play() REJECTED: ' + e.name + ': ' + e.message);
+  }
+
+  // Check after 2 seconds
+  setTimeout(() => {
+    log('5. After 2 seconds:');
+    log('   currentTime=' + audio.currentTime.toFixed(2) + ' paused=' + audio.paused);
+    if (audio.currentTime === 0 && !audio.paused) {
+      log('   ⚠️ STUCK: audio says playing but currentTime is still 0!');
+    } else if (audio.currentTime > 0) {
+      log('   ✓ Audio is advancing! currentTime=' + audio.currentTime.toFixed(2));
+    }
+  }, 2000);
+}
+
+test();
+</script>
+</body>
+</html>
