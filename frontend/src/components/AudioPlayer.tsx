@@ -267,7 +267,6 @@ export default function AudioPlayer({
 
   const togglePlay = async () => {
     const audio = audioRef.current;
-    console.log("[AudioPlayer] togglePlay called", { audio: !!audio, audioUrl: !!audioUrl, isPlaying, src: audio?.src });
     if (!audio || !audioUrl) return;
     if (isPlaying) {
       audio.pause();
@@ -277,11 +276,10 @@ export default function AudioPlayer({
     } else {
       try {
         await audio.play();
-        console.log("[AudioPlayer] play() resolved", { currentTime: audio.currentTime, paused: audio.paused });
         setIsPlaying(true);
         onPlayingChange?.(true);
-      } catch (e) {
-        console.error("[AudioPlayer] play() rejected", e);
+      } catch {
+        // Browser blocked playback
       }
     }
   };
@@ -575,9 +573,5 @@ export default function AudioPlayer({
     </div>
   );
 
-  if (isPlaying) {
-    return <GradientBorder animate>{playerContent}</GradientBorder>;
-  }
-
-  return <div className="glass-strong rounded-2xl">{playerContent}</div>;
+  return <GradientBorder animate={isPlaying}>{playerContent}</GradientBorder>;
 }
