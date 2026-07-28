@@ -253,9 +253,24 @@ export default function ConversionPanel({
           <h3 className="text-sm font-semibold text-gray-200">Choose a voice</h3>
           <span className="text-xs text-gray-500">Click speaker icon to preview</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <motion.div
+          className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.05 } }
+          }}
+        >
           {voices.map((voice) => (
-            <div key={voice.id} className="relative">
+            <motion.div
+              key={voice.id}
+              className="relative"
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                visible: { opacity: 1, y: 0 }
+              }}
+            >
               <button
                 onClick={() => setSelectedVoice(voice.id)}
                 disabled={isConverting}
@@ -290,9 +305,9 @@ export default function ConversionPanel({
                   </svg>
                 )}
               </button>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
 
       {/* Progress / Convert button */}
@@ -323,13 +338,15 @@ export default function ConversionPanel({
           </p>
         </motion.div>
       ) : (
-        <button
+        <motion.button
           onClick={handleConvert}
           disabled={!!error}
           className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-lg hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50 hover:scale-[1.01] hover:shadow-[0_0_30px_rgba(139,92,246,0.2)] active:scale-[0.99]"
+          animate={{ boxShadow: ["0 0 0px rgba(139,92,246,0)", "0 0 20px rgba(139,92,246,0.3)", "0 0 0px rgba(139,92,246,0)"] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
           Convert to Audiobook
-        </button>
+        </motion.button>
       )}
 
       {error && (

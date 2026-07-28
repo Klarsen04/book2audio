@@ -13,6 +13,7 @@ interface Props {
   title: string;
   chapters: { title: string; word_count: number }[];
   seekTarget?: number | null;
+  autoPlay?: boolean;
   onSeekHandled?: () => void;
   onPlayingChange?: (playing: boolean) => void;
   onTimeUpdate?: (time: number) => void;
@@ -24,6 +25,7 @@ export default function AudioPlayer({
   title,
   chapters,
   seekTarget,
+  autoPlay,
   onSeekHandled,
   onPlayingChange,
   onTimeUpdate,
@@ -88,6 +90,14 @@ export default function AudioPlayer({
     if (seekTarget !== null && seekTarget !== undefined && audioRef.current && audioUrl) {
       audioRef.current.currentTime = seekTarget;
       setCurrentTime(seekTarget);
+      if (autoPlay) {
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+          onPlayingChange?.(true);
+        }).catch(() => {
+          // Browser blocked playback
+        });
+      }
       onSeekHandled?.();
     }
   }, [seekTarget]);

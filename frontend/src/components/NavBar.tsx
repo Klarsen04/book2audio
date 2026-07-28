@@ -26,24 +26,31 @@ export default function NavBar() {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 glass-strong">
+    <nav className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <Link href="/library" className="text-lg font-bold gradient-text">
             Book2Audio
           </Link>
-          <div className="hidden sm:flex gap-1">
+          <div className="hidden sm:flex gap-1 relative">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
                   isActive(link.href)
-                    ? "bg-white/[0.08] text-white"
-                    : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                    ? "text-white"
+                    : "text-gray-400 hover:text-white"
                 }`}
               >
-                {link.label}
+                {isActive(link.href) && (
+                  <motion.div
+                    layoutId="nav-indicator"
+                    className="absolute inset-0 rounded-lg bg-white/[0.08] border border-white/[0.06]"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">{link.label}</span>
               </Link>
             ))}
           </div>

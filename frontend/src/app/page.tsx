@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import ParticleField from "@/components/ParticleField";
 import TypeWriter from "@/components/TypeWriter";
@@ -89,6 +89,184 @@ function AudioSample({
         )}
       </div>
     </div>
+  );
+}
+
+const voiceDemoTabs = [
+  { id: "research", label: "Research paper" },
+  { id: "book", label: "Book" },
+  { id: "article", label: "Article" },
+  { id: "legal", label: "Legal" },
+] as const;
+
+const voiceDemoTexts: Record<string, string> = {
+  research:
+    "The experiment showed a 27% reduction in failures versus the baseline, with p < 0.001 using a t-test.",
+  book:
+    "It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness.",
+  article:
+    "Scientists have discovered a new species of deep-sea fish that produces its own light using a previously unknown chemical process.",
+  legal:
+    "Pursuant to Section 4.2 of the Agreement, the parties hereby acknowledge and agree that all intellectual property rights shall remain vested.",
+};
+
+const voiceOptions = [
+  { id: "Joanna", label: "Joanna: Female, clear" },
+  { id: "Matthew", label: "Matthew: Male, warm" },
+  { id: "Ruth", label: "Ruth: Female, expressive" },
+  { id: "Stephen", label: "Stephen: Male, deep" },
+];
+
+const speedOptions = ["0.75x", "1x", "1.25x", "1.5x", "2x"];
+
+function VoiceDemoSection() {
+  const [activeTab, setActiveTab] = useState<string>("research");
+  const [selectedVoice, setSelectedVoice] = useState(voiceOptions[0].id);
+  const [speed, setSpeed] = useState("1x");
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handlePlay = async () => {
+    setIsPlaying(true);
+    try {
+      await fetch(`/api/voices/preview/${selectedVoice}`, { method: "POST" });
+    } catch {
+      // demo only
+    }
+    setTimeout(() => setIsPlaying(false), 3000);
+  };
+
+  return (
+    <section className="py-20 border-t border-white/[0.04]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+        className="text-center mb-12"
+      >
+        <h2 className="text-3xl font-bold text-white mb-3">
+          Try our text to speech voices
+        </h2>
+        <p className="text-gray-400 max-w-lg mx-auto">
+          Pick a content type, choose a voice, and hear how your documents will sound.
+        </p>
+      </motion.div>
+
+      {/* Tab buttons */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6, delay: 0.1 }}
+        className="flex justify-center gap-2 mb-8"
+      >
+        {voiceDemoTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`relative px-5 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeTab === tab.id
+                ? "text-white"
+                : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {activeTab === tab.id && (
+              <motion.div
+                layoutId="voiceDemoTabBg"
+                className="absolute inset-0 rounded-full bg-white/[0.08] border border-white/[0.1]"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+              />
+            )}
+            <span className="relative z-10">{tab.label}</span>
+          </button>
+        ))}
+      </motion.div>
+
+      {/* Main card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="max-w-2xl mx-auto glass rounded-2xl p-8"
+      >
+        {/* Sample text area */}
+        <div className="min-h-[80px] mb-6">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="text-gray-300 text-base leading-relaxed italic"
+            >
+              &ldquo;{voiceDemoTexts[activeTab]}&rdquo;
+            </motion.p>
+          </AnimatePresence>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+          {/* Voice dropdown */}
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">Voice</label>
+            <select
+              value={selectedVoice}
+              onChange={(e) => setSelectedVoice(e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500/50"
+            >
+              {voiceOptions.map((v) => (
+                <option key={v.id} value={v.id} className="bg-gray-900">
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Speed dropdown */}
+          <div className="w-24">
+            <label className="text-xs text-gray-500 mb-1 block">Speed</label>
+            <select
+              value={speed}
+              onChange={(e) => setSpeed(e.target.value)}
+              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500/50"
+            >
+              {speedOptions.map((s) => (
+                <option key={s} value={s} className="bg-gray-900">
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Play button */}
+          <div className="flex items-end">
+            <button
+              onClick={handlePlay}
+              disabled={isPlaying}
+              className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-500 hover:to-blue-500 transition-all hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isPlaying ? (
+                <>
+                  <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                  </svg>
+                  Playing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  Play
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </section>
   );
 }
 
@@ -199,6 +377,9 @@ export default function Home() {
             </a>
           </motion.div>
         </section>
+
+        {/* Interactive Voice Demo */}
+        <VoiceDemoSection />
 
         {/* Supported Formats */}
         <section className="py-20 border-t border-white/[0.04]">

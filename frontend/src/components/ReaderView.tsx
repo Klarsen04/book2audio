@@ -169,6 +169,11 @@ export default function ReaderView({
     }
   }, [currentChapterIndex]);
 
+  // Reset scroll-to-match tracking when chapter changes so highlights scroll into view
+  useEffect(() => {
+    hasScrolledToMatch.current = "";
+  }, [selectedChapter]);
+
   // Count search matches and scroll to first match when query changes
   const chapter = chapters[selectedChapter];
   const [otherChapterMatches, setOtherChapterMatches] = useState<{ index: number; title: string; count: number }[]>([]);

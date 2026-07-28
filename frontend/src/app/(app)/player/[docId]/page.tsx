@@ -48,6 +48,7 @@ export default function PlayerPage() {
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
+  const [autoPlayAfterSeek, setAutoPlayAfterSeek] = useState(false);
   const [activeTab, setActiveTab] = useState<"reader" | "notes" | "flashcards" | "none">("reader");
   const [currentTime, setCurrentTime] = useState(0);
   const [autoplayNext, setAutoplayNext] = useState(false);
@@ -132,6 +133,7 @@ export default function PlayerPage() {
     }
 
     setSeekTarget(seekTime);
+    setAutoPlayAfterSeek(true);
     setCurrentChapterIndex(index);
   };
 
@@ -312,7 +314,8 @@ export default function PlayerPage() {
         title={document.title}
         chapters={document.chapters}
         seekTarget={seekTarget}
-        onSeekHandled={() => setSeekTarget(null)}
+        autoPlay={autoPlayAfterSeek}
+        onSeekHandled={() => { setSeekTarget(null); setAutoPlayAfterSeek(false); }}
         onPlayingChange={(playing) => {
           setIsPlaying(playing);
           setNowPlaying({ docId, title: document.title, isPlaying: playing });

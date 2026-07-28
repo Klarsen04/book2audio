@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import api from "@/lib/api";
 
 interface Document {
@@ -86,7 +87,10 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
   }, [doc.id, doc.status, doc.audio_duration]);
 
   return (
-    <div className="group glass rounded-2xl p-5 flex flex-col justify-between hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300 hover-lift">
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      className="group glass rounded-2xl p-5 flex flex-col justify-between hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300 hover-lift hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]">
       <div>
         <div className="flex items-start justify-between mb-4">
           <span className="text-3xl">{formatIcons[doc.format] || "📄"}</span>
@@ -163,6 +167,6 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
           </svg>
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
