@@ -11,9 +11,9 @@ VOICES = {
     "Amy": {"id": "en-GB-SoniaNeural", "gender": "Female", "engine": "edge"},
     "Brian": {"id": "en-GB-RyanNeural", "gender": "Male", "engine": "edge"},
     "Ruth": {"id": "en-US-AriaNeural", "gender": "Female", "engine": "edge"},
-    "Stephen": {"id": "en-US-DavisNeural", "gender": "Male", "engine": "edge"},
-    "Danielle": {"id": "en-US-NancyNeural", "gender": "Female", "engine": "edge"},
-    "Gregory": {"id": "en-US-TonyNeural", "gender": "Male", "engine": "edge"},
+    "Stephen": {"id": "en-US-ChristopherNeural", "gender": "Male", "engine": "edge"},
+    "Danielle": {"id": "en-US-MichelleNeural", "gender": "Female", "engine": "edge"},
+    "Gregory": {"id": "en-US-EricNeural", "gender": "Male", "engine": "edge"},
 }
 
 MAX_CHARS = 5000
