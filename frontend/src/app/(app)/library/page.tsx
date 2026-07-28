@@ -356,7 +356,7 @@ export default function LibraryPage() {
             </h3>
             <div className="space-y-1">
               <button
-                onClick={() => { setActiveCollection(null); setFileTypeFilter("all"); setStatusFilter("all"); setSidebarOpen(false); }}
+                onClick={() => { setActiveCollection(null); setFileTypeFilter("all"); setStatusFilter("all"); setSortOption("custom"); setSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   activeCollection === null
                     ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
@@ -382,7 +382,7 @@ export default function LibraryPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                     transition={{ duration: 0.2 }}
-                    onClick={() => { setActiveCollection(col.id); setFileTypeFilter("all"); setStatusFilter("all"); setSidebarOpen(false); }}
+                    onClick={() => { setActiveCollection(col.id); setFileTypeFilter("all"); setStatusFilter("all"); setSortOption("custom"); setSidebarOpen(false); }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       handleDeleteCollection(col.id);
