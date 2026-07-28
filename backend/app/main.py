@@ -280,7 +280,7 @@ async def upload_text(body: UploadTextRequest, user: dict = Depends(get_current_
 
 
 @app.post("/api/convert/{doc_id}")
-async def start_conversion(doc_id: str, voice: str = "Joanna", user: dict = Depends(get_current_user)):
+async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", additional_context: bool = False, user: dict = Depends(get_current_user)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT id, status FROM documents WHERE id = ? AND user_id = ?",
@@ -295,6 +295,26 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", user: dict = Depe
 
     if conversion_progress[doc_id]["status"] == "converting":
         raise HTTPException(status_code=409, detail="Conversion already in progress")
+
+    # Apply summarization if needed
+    if audio_type in ("long_summary", "short_summary"):
+        from app.summarizer import summarize_long, summarize_short
+        from app.parsers.extractor import Chapter
+        content = conversion_progress[doc_id]["content"]
+        summarize_fn = summarize_long if audio_type == "long_summary" else summarize_short
+        summarized_chapters = []
+        for ch in content.chapters:
+            summary_text = summarize_fn(ch.text)
+            summarized_chapters.append(Chapter(title=ch.title, text=summary_text))
+        # Replace content with summarized version
+        from app.parsers.extractor import BookContent
+        summarized_content = BookContent(
+            title=content.title,
+            chapters=summarized_chapters,
+            word_count=sum(len(ch.text.split()) for ch in summarized_chapters),
+        )
+        conversion_progress[doc_id]["content"] = summarized_content
+        conversion_progress[doc_id]["total_chapters"] = len(summarized_chapters)
 
     conversion_progress[doc_id]["status"] = "converting"
     conversion_progress[doc_id]["progress"] = 0
