@@ -91,14 +91,18 @@ export default function AudioPlayer({
     const saved = localStorage.getItem("playback_speed");
     if (saved) {
       const s = parseFloat(saved);
-      setSpeed(s);
-      if (audioRef.current) audioRef.current.playbackRate = s;
+      if (s > 0 && s <= 4) {
+        setSpeed(s);
+        if (audioRef.current) audioRef.current.playbackRate = s;
+      }
     }
     const savedVol = localStorage.getItem("playback_volume");
     if (savedVol) {
       const v = parseFloat(savedVol);
-      setVolume(v);
-      if (audioRef.current) audioRef.current.volume = v;
+      if (!isNaN(v) && v >= 0 && v <= 1) {
+        setVolume(v);
+        if (audioRef.current) audioRef.current.volume = v;
+      }
     }
   }, []);
 
