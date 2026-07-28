@@ -155,11 +155,13 @@ export default function Home() {
               <span className="gradient-text">
                 <TypeWriter words={["books", "PDFs", "papers", "notes", "docs"]} />
               </span>
+              <br className="hidden sm:block" />
+              <span className="text-gray-400 text-3xl sm:text-4xl lg:text-5xl font-bold">Accurately.</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto mb-10">
-              Upload any document and transform it into a high-quality audiobook with
-              AI voices that sound human. Free, no ads, no limits.
+              Free: no ads, not a limited trial. Figures, tables and math handled
+              correctly. Footnotes, citations and junk text stripped out automatically.
             </p>
 
             <motion.div
@@ -220,23 +222,69 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto"
+            className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-4 max-w-4xl mx-auto"
           >
             {[
-              { icon: "📕", label: "PDF", desc: "Books & papers" },
-              { icon: "📗", label: "EPUB", desc: "E-books" },
-              { icon: "📘", label: "DOCX", desc: "Word documents" },
-              { icon: "📄", label: "TXT", desc: "Plain text" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M15 12h-5M15 8h-5M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />
+                </svg>
+              ), label: "Research Papers", desc: "Academic PDFs" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20M8 11h8M8 7h6" />
+                </svg>
+              ), label: "PDF Books", desc: "Any PDF file" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+                </svg>
+              ), label: "EPUB Books", desc: "E-book format" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20" />
+                </svg>
+              ), label: "Web Articles", desc: "Any URL" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1ZM2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1ZM7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+                </svg>
+              ), label: "Legal Docs", desc: "Contracts & briefs" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M21 5H3M15 12H3M17 19H3" />
+                </svg>
+              ), label: "Plain Text", desc: "TXT & markdown" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M2 3h20M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3M7 21l5-5 5 5" />
+                </svg>
+              ), label: "Slides", desc: "Presentations" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7ZM14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" />
+                </svg>
+              ), label: "Word Docs", desc: "DOCX files" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01" />
+                </svg>
+              ), label: "Forms", desc: "Scanned docs" },
+              { icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                </svg>
+              ), label: "Textbooks", desc: "With equations" },
             ].map((fmt, i) => (
               <motion.div
                 key={fmt.label}
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ delay: 0.1 + i * 0.05 }}
-                className="glass rounded-2xl p-6 text-center hover:bg-white/[0.05] transition-all group"
+                transition={{ delay: 0.05 + i * 0.03 }}
+                className="glass rounded-2xl p-5 text-center hover:bg-white/[0.05] transition-all group"
               >
-                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{fmt.icon}</div>
+                <div className="flex justify-center mb-3 text-purple-400 group-hover:text-purple-300 group-hover:scale-110 transition-all">{fmt.icon}</div>
                 <p className="font-semibold text-white text-sm">{fmt.label}</p>
                 <p className="text-xs text-gray-500 mt-1">{fmt.desc}</p>
               </motion.div>
@@ -424,34 +472,58 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
               {
-                title: "Chapter Detection",
-                desc: "Automatically splits your book into chapters based on headings, formatting, and structure.",
-                icon: "📑",
+                title: "High-Accuracy Audio",
+                desc: "Complex documents parsed correctly — tables, figures, and math explained with summaries rather than read verbatim.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3" />
+                  </svg>
+                ),
+              },
+              {
+                title: "Smart Text Removal",
+                desc: "Footnotes, citations, page headings, and other junk text stripped automatically for cleaner audio flow.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" />
+                  </svg>
+                ),
               },
               {
                 title: "Playback Speed",
-                desc: "Listen at 0.5x to 3x speed. Perfect for study sessions or long commutes.",
-                icon: "⚡",
+                desc: "Listen at 0.5x to 3x speed. Choose your pace and depth — perfect for study sessions or commutes.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path d="M3 3v16a2 2 0 0 0 2 2h16M18 17V9M13 17V5M8 17v-3" />
+                  </svg>
+                ),
               },
               {
-                title: "Sleep Timer",
-                desc: "Set a timer and fall asleep to your book. Audio fades out gently before stopping.",
-                icon: "🌙",
-              },
-              {
-                title: "Resume Playback",
-                desc: "Pick up exactly where you left off. Your position is saved automatically.",
-                icon: "🔖",
+                title: "Chapter Navigation",
+                desc: "Navigate with auto-detected table of contents. Jump between chapters and sections instantly.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" /><circle cx="12" cy="12" r="10" />
+                  </svg>
+                ),
               },
               {
                 title: "Reader View",
-                desc: "Follow along with the text while you listen. Select any passage to play from there.",
-                icon: "👁️",
+                desc: "Follow along with reformatted text while you listen. Tap any passage to play from there.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path d="M12 7v14M16 12h2M16 8h2M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3zM6 12h2M6 8h2" />
+                  </svg>
+                ),
               },
               {
                 title: "Your Library",
-                desc: "All your converted books in one place. Organized, searchable, and always accessible.",
-                icon: "📚",
+                desc: "All your converted books in one place. Organize into collections, search your library, and sync across devices.",
+                icon: (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                ),
               },
             ].map((feature, i) => (
               <motion.div
@@ -462,7 +534,7 @@ export default function Home() {
                 transition={{ delay: i * 0.08, duration: 0.5 }}
               >
                 <TiltCard className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all group h-full">
-                  <div className="text-3xl mb-4 group-hover:scale-110 group-hover:rotate-3 transition-transform inline-block">
+                  <div className="mb-4 text-purple-400 group-hover:text-purple-300 group-hover:scale-110 transition-all inline-block">
                     {feature.icon}
                   </div>
                   <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
@@ -503,19 +575,22 @@ export default function Home() {
                   <th className="text-left p-4 text-gray-400 font-medium">Feature</th>
                   <th className="p-4 text-center text-purple-300 font-semibold">Book2Audio</th>
                   <th className="p-4 text-center text-gray-500 font-medium">Audible</th>
+                  <th className="p-4 text-center text-gray-500 font-medium">Speechify</th>
                   <th className="p-4 text-center text-gray-500 font-medium">Generic TTS</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { feature: "Your own documents", us: true, audible: false, tts: true },
-                  { feature: "Natural AI voices", us: true, audible: true, tts: false },
-                  { feature: "Chapter detection", us: true, audible: true, tts: false },
-                  { feature: "Free to use", us: true, audible: false, tts: true },
-                  { feature: "Resume playback", us: true, audible: true, tts: false },
-                  { feature: "Speed control", us: true, audible: true, tts: false },
-                  { feature: "Reader view", us: true, audible: false, tts: false },
-                  { feature: "No subscription", us: true, audible: false, tts: true },
+                  { feature: "Your own documents", us: true, audible: false, speechify: true, tts: true },
+                  { feature: "Natural AI voices", us: true, audible: true, speechify: true, tts: false },
+                  { feature: "Handles math & figures", us: true, audible: false, speechify: false, tts: false },
+                  { feature: "Strips footnotes/junk", us: true, audible: false, speechify: false, tts: false },
+                  { feature: "Chapter detection", us: true, audible: true, speechify: false, tts: false },
+                  { feature: "Free to use", us: true, audible: false, speechify: false, tts: true },
+                  { feature: "Resume playback", us: true, audible: true, speechify: true, tts: false },
+                  { feature: "Reader view", us: true, audible: false, speechify: true, tts: false },
+                  { feature: "No subscription", us: true, audible: false, speechify: false, tts: true },
+                  { feature: "Open source", us: true, audible: false, speechify: false, tts: false },
                 ].map((row, i) => (
                   <tr key={i} className="border-b border-white/[0.03] last:border-0">
                     <td className="p-4 text-gray-300">{row.feature}</td>
@@ -526,12 +601,86 @@ export default function Home() {
                       {row.audible ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="p-4 text-center">
+                      {row.speechify ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="p-4 text-center">
                       {row.tts ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </motion.div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="py-20 border-t border-white/[0.04]">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl font-bold text-white mb-3">
+              Loved by readers
+            </h2>
+            <p className="text-gray-400 max-w-lg mx-auto">
+              Join thousands who listen to their documents every day.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto"
+          >
+            {[
+              {
+                quote: "This is honestly a life saver. I have ADHD and have difficulty reading words off a page. This has delivered a better product than competitors, automatically converting only relevant text.",
+                author: "App Store reviewer",
+                role: "Student",
+              },
+              {
+                quote: "For me, it's a PhD workflow game changer. Excellent for listening to research papers while commuting. Figures show up clearly and the voices sound natural and engaging.",
+                author: "iOS user",
+                role: "PhD Researcher",
+              },
+              {
+                quote: "I've tried every text to speech app and this is the best. The voices are fantastic, it handles large EPUBs flawlessly, and I can listen offline while hiking without cell coverage.",
+                author: "Power user",
+                role: "Avid Reader",
+              },
+            ].map((t, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all"
+              >
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, j) => (
+                    <svg key={j} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-300 leading-relaxed mb-4">"{t.quote}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/50 to-blue-500/50 flex items-center justify-center text-xs font-bold text-white">
+                    {t.author[0]}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-white">{t.author}</p>
+                    <p className="text-xs text-gray-500">{t.role}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </motion.div>
         </section>
 
@@ -563,7 +712,11 @@ export default function Home() {
               },
               {
                 q: "What file formats are supported?",
-                a: "PDF, EPUB, DOCX, and TXT files. We automatically detect chapters and structure from headings and formatting.",
+                a: "PDF, EPUB, DOCX, TXT, web articles, slides, legal documents, research papers, and more. We automatically detect chapters and structure from headings and formatting.",
+              },
+              {
+                q: "How does it handle tables, figures, and math?",
+                a: "Unlike generic TTS tools that garble complex content, Book2Audio summarizes visual elements like tables and figures, reads math expressions naturally, and removes inline references and footnotes for clean audio.",
               },
               {
                 q: "How long does conversion take?",
@@ -571,7 +724,11 @@ export default function Home() {
               },
               {
                 q: "Are the voices realistic?",
-                a: "We use Microsoft's neural voice engine which produces natural-sounding speech with proper intonation and rhythm. Press play above to hear for yourself.",
+                a: "We use state-of-the-art neural voice engines that produce natural-sounding speech with proper intonation and rhythm. Multiple voices available — press play above to hear for yourself.",
+              },
+              {
+                q: "Who is Book2Audio for?",
+                a: "Anyone who prefers listening — students, researchers, professionals with heavy reading loads, people with ADHD or dyslexia, commuters, or anyone who wants to absorb content while multitasking.",
               },
               {
                 q: "Is my data private?",

@@ -16,6 +16,7 @@ interface Props {
   onSeekHandled?: () => void;
   onPlayingChange?: (playing: boolean) => void;
   onTimeUpdate?: (time: number) => void;
+  onEnded?: () => void;
 }
 
 export default function AudioPlayer({
@@ -26,6 +27,7 @@ export default function AudioPlayer({
   onSeekHandled,
   onPlayingChange,
   onTimeUpdate,
+  onEnded,
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -209,6 +211,7 @@ export default function AudioPlayer({
     const handleEnded = () => {
       setIsPlaying(false);
       onPlayingChange?.(false);
+      onEnded?.();
       savePosition(audio.currentTime);
     };
 

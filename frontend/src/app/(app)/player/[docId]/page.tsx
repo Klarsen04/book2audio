@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import AudioPlayer from "@/components/AudioPlayer";
@@ -12,6 +12,7 @@ import HighlightsPanel from "@/components/Highlights";
 import NotesPanel from "@/components/NotesPanel";
 import FlashcardsView from "@/components/Flashcards";
 import { setNowPlaying } from "@/components/NowPlaying";
+import { showToast } from "@/components/Toast";
 import { motion } from "framer-motion";
 
 interface Chapter {
@@ -30,9 +31,16 @@ interface Document {
   status: string;
 }
 
+interface LibraryDoc {
+  id: string;
+  title: string;
+  status: string;
+}
+
 export default function PlayerPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const docId = params.docId as string;
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +50,58 @@ export default function PlayerPage() {
   const [seekTarget, setSeekTarget] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"reader" | "notes" | "flashcards" | "none">("reader");
   const [currentTime, setCurrentTime] = useState(0);
+  const [autoplayNext, setAutoplayNext] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [libraryDocs, setLibraryDocs] = useState<LibraryDoc[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("autoplay_next");
+    if (stored === "true") setAutoplayNext(true);
+  }, []);
+
+  useEffect(() => {
+    api
+      .get("/api/library")
+      .then((res) => {
+        const docs = res.data.documents || res.data || [];
+        setLibraryDocs(docs);
+      })
+      .catch(() => {
+        // Silently fail - autoplay just won't work
+      });
+  }, []);
+
+  const getNextCompletedDoc = useCallback((): LibraryDoc | null => {
+    if (libraryDocs.length === 0) return null;
+    const currentIndex = libraryDocs.findIndex((doc) => doc.id === docId);
+    if (currentIndex === -1) return null;
+    for (let i = currentIndex + 1; i < libraryDocs.length; i++) {
+      if (libraryDocs[i].status === "completed") {
+        return libraryDocs[i];
+      }
+    }
+    return null;
+  }, [libraryDocs, docId]);
+
+  const toggleAutoplay = () => {
+    setAutoplayNext((prev) => {
+      const next = !prev;
+      localStorage.setItem("autoplay_next", String(next));
+      return next;
+    });
+  };
+
+  const handleAudioEnded = useCallback(() => {
+    if (autoplayNext) {
+      const nextDoc = getNextCompletedDoc();
+      if (nextDoc) {
+        showToast(`Playing next: ${nextDoc.title}`);
+        router.push(`/player/${nextDoc.id}`);
+      } else {
+        showToast("End of queue");
+      }
+    }
+  }, [autoplayNext, getNextCompletedDoc, router]);
 
   useEffect(() => {
     api
@@ -194,6 +254,20 @@ export default function PlayerPage() {
           Back to library
         </Link>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={toggleAutoplay}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              autoplayNext
+                ? "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
+                : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+            }`}
+            title="Auto-play next document when audio ends"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+            Auto-play next
+          </button>
           <StudyTimer />
           <Bookmarks
             docId={docId}
@@ -205,7 +279,7 @@ export default function PlayerPage() {
             onClick={() => {
               const url = `${window.location.origin}/player/${docId}?t=${Math.floor(currentTime)}`;
               navigator.clipboard.writeText(url);
-              import("@/components/Toast").then(({ showToast }) => showToast("Link copied!"));
+              showToast("Link copied!");
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
             title="Copy link with timestamp"
@@ -244,6 +318,7 @@ export default function PlayerPage() {
           setNowPlaying({ docId, title: document.title, isPlaying: playing });
         }}
         onTimeUpdate={handleTimeUpdate}
+        onEnded={handleAudioEnded}
       />
 
       {/* Chapter progress mini-map */}
@@ -300,7 +375,25 @@ export default function PlayerPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
+          className="space-y-3"
         >
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search transcript..."
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-xl glass border border-white/[0.06] bg-white/[0.03] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 transition-all"
+            />
+          </div>
           <ReaderView
             chapters={document.chapters}
             currentChapterIndex={currentChapterIndex}
@@ -315,6 +408,7 @@ export default function PlayerPage() {
               const chDuration = chEnd - chStart;
               return chDuration > 0 ? (currentTime - chStart) / chDuration : 0;
             })()}
+            searchQuery={searchQuery}
           />
         </motion.div>
       )}
@@ -340,6 +434,27 @@ export default function PlayerPage() {
           <FlashcardsView docId={docId} />
         </motion.div>
       )}
+
+      {autoplayNext && (() => {
+        const nextDoc = getNextCompletedDoc();
+        if (!nextDoc) return null;
+        return (
+          <div className="glass rounded-xl px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+              <span>Up next:</span>
+              <Link
+                href={`/player/${nextDoc.id}`}
+                className="text-purple-300 hover:text-purple-200 font-medium transition-colors"
+              >
+                {nextDoc.title} &rarr;
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
     </motion.div>
   );
 }

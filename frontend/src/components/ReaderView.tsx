@@ -1,12 +1,41 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Chapter {
   title: string;
   word_count: number;
   text?: string;
 }
+
+interface ReaderSettings {
+  fontFamily: "sans-serif" | "serif" | "mono" | "dyslexic";
+  fontSize: number;
+  lineSpacing: number;
+  textWidth: "narrow" | "medium" | "wide";
+}
+
+const FONT_FAMILY_MAP: Record<ReaderSettings["fontFamily"], string> = {
+  "sans-serif": "Inter, ui-sans-serif, system-ui, sans-serif",
+  "serif": "Georgia, ui-serif, serif",
+  "mono": "'JetBrains Mono', ui-monospace, monospace",
+  "dyslexic": "OpenDyslexic, sans-serif",
+};
+
+const TEXT_WIDTH_MAP: Record<ReaderSettings["textWidth"], string> = {
+  narrow: "50ch",
+  medium: "70ch",
+  wide: "90ch",
+};
+
+const DEFAULT_SETTINGS: ReaderSettings = {
+  fontFamily: "sans-serif",
+  fontSize: 15,
+  lineSpacing: 1.8,
+  textWidth: "medium",
+};
+
+const STORAGE_KEY = "reader_settings";
 
 interface Props {
   chapters: Chapter[];
@@ -15,6 +44,7 @@ interface Props {
   onPlayFromText: (chapterIndex: number, textOffset: string) => void;
   isPlaying: boolean;
   chapterProgress?: number;
+  searchQuery?: string;
 }
 
 export default function ReaderView({
@@ -24,15 +54,54 @@ export default function ReaderView({
   onPlayFromText,
   isPlaying,
   chapterProgress = 0,
+  searchQuery: _searchQuery,
 }: Props) {
   const [selectedChapter, setSelectedChapter] = useState(currentChapterIndex);
   const [showToc, setShowToc] = useState(true);
   const [selectedText, setSelectedText] = useState("");
   const [showPlayConfirm, setShowPlayConfirm] = useState(false);
   const [confirmPosition, setConfirmPosition] = useState({ x: 0, y: 0 });
+  const [showSettings, setShowSettings] = useState(false);
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
   const textRef = useRef<HTMLDivElement>(null);
   const tocRef = useRef<HTMLDivElement>(null);
   const chapterRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<ReaderSettings>;
+        setReaderSettings({ ...DEFAULT_SETTINGS, ...parsed });
+      }
+    } catch {
+      // Ignore parse errors, use defaults
+    }
+  }, []);
+
+  // Save settings to localStorage whenever they change
+  const updateSettings = useCallback((update: Partial<ReaderSettings>) => {
+    setReaderSettings((prev) => {
+      const next = { ...prev, ...update };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Close settings panel on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    if (showSettings) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSettings]);
 
   useEffect(() => {
     setSelectedChapter(currentChapterIndex);
@@ -93,9 +162,144 @@ export default function ReaderView({
           </svg>
           <span className="font-medium">Chapters</span>
         </button>
-        <span className="text-xs text-gray-500 bg-white/[0.04] px-3 py-1 rounded-full">
-          {selectedChapter + 1} / {chapters.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 bg-white/[0.04] px-3 py-1 rounded-full">
+            {selectedChapter + 1} / {chapters.length}
+          </span>
+          {/* Settings menu button */}
+          <div className="relative" ref={settingsRef}>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+              title="Reader settings"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
+              </svg>
+            </button>
+
+            {/* Settings Panel */}
+            {showSettings && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-72 glass-strong rounded-xl shadow-2xl border border-white/[0.08] p-4 space-y-4">
+                {/* Font Family */}
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                    Font Family
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(["sans-serif", "serif", "mono", "dyslexic"] as const).map((font) => (
+                      <button
+                        key={font}
+                        onClick={() => updateSettings({ fontFamily: font })}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+                          readerSettings.fontFamily === font
+                            ? "bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40"
+                            : "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]"
+                        }`}
+                      >
+                        {font === "sans-serif" && "Sans-serif"}
+                        {font === "serif" && "Serif"}
+                        {font === "mono" && "Mono"}
+                        {font === "dyslexic" && (
+                          <span>
+                            Dyslexic
+                            <span className="block text-[10px] text-gray-500 font-normal mt-0.5">
+                              (better for dyslexia)
+                            </span>
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Font Size */}
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                    Font Size <span className="text-gray-500 normal-case">{readerSettings.fontSize}px</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateSettings({ fontSize: Math.max(14, readerSettings.fontSize - 1) })}
+                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min={14}
+                      max={24}
+                      step={1}
+                      value={readerSettings.fontSize}
+                      onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
+                      className="flex-1 h-1 bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400"
+                    />
+                    <button
+                      onClick={() => updateSettings({ fontSize: Math.min(24, readerSettings.fontSize + 1) })}
+                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Line Spacing */}
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                    Line Spacing <span className="text-gray-500 normal-case">{readerSettings.lineSpacing.toFixed(1)}</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateSettings({ lineSpacing: Math.max(1.4, Math.round((readerSettings.lineSpacing - 0.1) * 10) / 10) })}
+                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min={1.4}
+                      max={2.4}
+                      step={0.1}
+                      value={readerSettings.lineSpacing}
+                      onChange={(e) => updateSettings({ lineSpacing: Number(e.target.value) })}
+                      className="flex-1 h-1 bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400"
+                    />
+                    <button
+                      onClick={() => updateSettings({ lineSpacing: Math.min(2.4, Math.round((readerSettings.lineSpacing + 0.1) * 10) / 10) })}
+                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Text Width */}
+                <div>
+                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                    Text Width
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["narrow", "medium", "wide"] as const).map((width) => (
+                      <button
+                        key={width}
+                        onClick={() => updateSettings({ textWidth: width })}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium capitalize transition-all ${
+                          readerSettings.textWidth === width
+                            ? "bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40"
+                            : "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]"
+                        }`}
+                      >
+                        {width}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="flex">
@@ -154,7 +358,13 @@ export default function ReaderView({
             <div
               ref={textRef}
               onMouseUp={handleTextSelect}
-              className="text-[15px] leading-[1.8] whitespace-pre-wrap select-text cursor-text"
+              className="whitespace-pre-wrap select-text cursor-text"
+              style={{
+                fontFamily: FONT_FAMILY_MAP[readerSettings.fontFamily],
+                fontSize: `${readerSettings.fontSize}px`,
+                lineHeight: String(readerSettings.lineSpacing),
+                maxWidth: TEXT_WIDTH_MAP[readerSettings.textWidth],
+              }}
             >
               {chapter.text.split("\n").map((paragraph, i, arr) => {
                 const paragraphFraction = arr.length > 0 ? i / arr.length : 0;

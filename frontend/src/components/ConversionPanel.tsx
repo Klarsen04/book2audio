@@ -32,6 +32,8 @@ export default function ConversionPanel({
 }: Props) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState("Joanna");
+  const [audioType, setAudioType] = useState("full");
+  const [additionalContext, setAdditionalContext] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState(0);
@@ -80,7 +82,7 @@ export default function ConversionPanel({
     setProgress(0);
 
     try {
-      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}`);
+      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&additional_context=${additionalContext}`);
     } catch (err: any) {
       setIsConverting(false);
       setError(err.response?.data?.detail || "Failed to start conversion");
@@ -163,6 +165,85 @@ export default function ConversionPanel({
               <span className="text-gray-600 text-xs">{ch.word_count.toLocaleString()}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Audio type selection */}
+      <div className="glass-strong rounded-2xl p-6">
+        <h3 className="text-sm font-semibold text-gray-200 mb-4">Audio Type</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            {
+              id: "full",
+              label: "Full Text",
+              description: "Reads the entire document. Tables, figures and math summarized, junk text removed.",
+              icon: (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
+              ),
+            },
+            {
+              id: "long_summary",
+              label: "Long Summary",
+              description: "Detailed summary covering key points. Reduces listening time by ~70%.",
+              icon: (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M12 17.25h8.25" />
+                </svg>
+              ),
+            },
+            {
+              id: "short_summary",
+              label: "Short Summary",
+              description: "Concise overview for quick understanding. ~5 min for most documents.",
+              icon: (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h8.25" />
+                </svg>
+              ),
+            },
+          ].map((type) => (
+            <button
+              key={type.id}
+              onClick={() => setAudioType(type.id)}
+              disabled={isConverting}
+              className={`flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all ${
+                audioType === type.id
+                  ? "bg-purple-600/20 border border-purple-500/40 text-white"
+                  : "bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:bg-white/[0.06] hover:border-white/[0.1]"
+              } disabled:opacity-50`}
+            >
+              <div className={`${audioType === type.id ? "text-purple-400" : "text-gray-400"}`}>
+                {type.icon}
+              </div>
+              <span className="text-sm font-medium">{type.label}</span>
+              <span className="text-xs text-gray-500 leading-relaxed">{type.description}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Additional Context toggle */}
+        <div className="mt-4 pt-4 border-t border-white/[0.06]">
+          <button
+            onClick={() => setAdditionalContext(!additionalContext)}
+            disabled={isConverting}
+            className="flex items-center justify-between w-full group disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-5 rounded-full transition-colors relative ${
+                additionalContext ? "bg-purple-600" : "bg-white/[0.1]"
+              }`}>
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  additionalContext ? "translate-x-4" : "translate-x-0.5"
+                }`} />
+              </div>
+              <div className="text-left">
+                <span className="text-sm text-gray-200 block">Additional Context</span>
+                <span className="text-xs text-gray-500">Adds background and definitions for research papers</span>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 

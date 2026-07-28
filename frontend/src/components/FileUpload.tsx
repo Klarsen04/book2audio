@@ -4,15 +4,20 @@ import { useState, useRef, DragEvent } from "react";
 import api from "@/lib/api";
 import { motion } from "framer-motion";
 
+type InputMode = "file" | "url" | "text";
+
 interface Props {
   onUploadComplete: (result: any) => void;
 }
 
 export default function FileUpload({ onUploadComplete }: Props) {
+  const [inputMode, setInputMode] = useState<InputMode>("file");
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [urlValue, setUrlValue] = useState("");
+  const [textValue, setTextValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const acceptedTypes = [".pdf", ".epub", ".docx", ".txt"];
@@ -77,92 +82,208 @@ export default function FileUpload({ onUploadComplete }: Props) {
     }
   };
 
+  const handleUrlSubmit = async () => {
+    if (!urlValue.trim()) return;
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const response = await api.post("/api/upload-url", { url: urlValue.trim() });
+      onUploadComplete(response.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to fetch URL. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleTextSubmit = async () => {
+    if (!textValue.trim()) return;
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const response = await api.post("/api/upload-text", { text: textValue.trim(), title: "Pasted text" });
+      onUploadComplete(response.data);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to convert text. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   };
 
+  const tabs: { key: InputMode; label: string }[] = [
+    { key: "file", label: "Upload File" },
+    { key: "url", label: "Paste URL" },
+    { key: "text", label: "Paste Text" },
+  ];
+
   return (
     <div className="space-y-5">
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`relative glass rounded-2xl p-16 text-center cursor-pointer transition-all duration-300 group ${
-          isDragging
-            ? "border-purple-500/50 bg-purple-500/5 scale-[1.01]"
-            : "hover:bg-white/[0.04] hover:border-white/10 hover:scale-[1.005]"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={acceptedTypes.join(",")}
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-
-        <motion.div
-          animate={isDragging ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="text-6xl mb-6"
-        >
-          📚
-        </motion.div>
-
-        <p className="text-lg text-gray-200 font-medium mb-2">
-          Drag & drop your book here
-        </p>
-        <p className="text-sm text-gray-500">
-          or <span className="text-purple-400 group-hover:text-purple-300 transition-colors">browse files</span>
-        </p>
-
-        <div className="flex items-center justify-center gap-3 mt-6">
-          {["PDF", "EPUB", "DOCX", "TXT"].map((fmt) => (
-            <span
-              key={fmt}
-              className="px-3 py-1 text-xs font-medium text-gray-500 bg-white/[0.04] rounded-full border border-white/[0.06]"
-            >
-              {fmt}
-            </span>
-          ))}
-        </div>
+      {/* Input mode tabs */}
+      <div className="flex items-center gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => { setInputMode(tab.key); setError(null); }}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+              inputMode === tab.key
+                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
+                : "text-gray-400 border border-white/[0.06] hover:text-gray-200 hover:bg-white/[0.04]"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {file && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-strong rounded-2xl p-5 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-2xl">
-              📄
-            </div>
-            <div>
-              <p className="text-gray-200 font-medium text-sm">{file.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{formatSize(file.size)}</p>
+      {/* File upload mode */}
+      {inputMode === "file" && (
+        <>
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => inputRef.current?.click()}
+            className={`relative glass rounded-2xl p-16 text-center cursor-pointer transition-all duration-300 group ${
+              isDragging
+                ? "border-purple-500/50 bg-purple-500/5 scale-[1.01]"
+                : "hover:bg-white/[0.04] hover:border-white/10 hover:scale-[1.005]"
+            }`}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept={acceptedTypes.join(",")}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <motion.div
+              animate={isDragging ? { scale: 1.1, y: -5 } : { scale: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="text-6xl mb-6"
+            >
+              📚
+            </motion.div>
+
+            <p className="text-lg text-gray-200 font-medium mb-2">
+              Drag & drop your book here
+            </p>
+            <p className="text-sm text-gray-500">
+              or <span className="text-purple-400 group-hover:text-purple-300 transition-colors">browse files</span>
+            </p>
+
+            <div className="flex items-center justify-center gap-3 mt-6">
+              {["PDF", "EPUB", "DOCX", "TXT"].map((fmt) => (
+                <span
+                  key={fmt}
+                  className="px-3 py-1 text-xs font-medium text-gray-500 bg-white/[0.04] rounded-full border border-white/[0.06]"
+                >
+                  {fmt}
+                </span>
+              ))}
             </div>
           </div>
-          <button
-            onClick={handleUpload}
-            disabled={isUploading}
-            className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
-          >
-            {isUploading ? (
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                {uploadProgress > 0 && uploadProgress < 100
-                  ? `Uploading ${uploadProgress}%`
-                  : "Analyzing..."}
-              </span>
-            ) : (
-              "Upload & Analyze"
-            )}
-          </button>
-        </motion.div>
+
+          {file && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-strong rounded-2xl p-5 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-2xl">
+                  📄
+                </div>
+                <div>
+                  <p className="text-gray-200 font-medium text-sm">{file.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatSize(file.size)}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleUpload}
+                disabled={isUploading}
+                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
+              >
+                {isUploading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    {uploadProgress > 0 && uploadProgress < 100
+                      ? `Uploading ${uploadProgress}%`
+                      : "Analyzing..."}
+                  </span>
+                ) : (
+                  "Upload & Analyze"
+                )}
+              </button>
+            </motion.div>
+          )}
+        </>
+      )}
+
+      {/* URL input mode */}
+      {inputMode === "url" && (
+        <div className="glass rounded-2xl p-8 space-y-4">
+          <div className="flex gap-3">
+            <input
+              type="url"
+              value={urlValue}
+              onChange={(e) => setUrlValue(e.target.value)}
+              placeholder="Paste a URL to any web article, PDF, or page..."
+              className="flex-1 px-5 py-3 bg-white/[0.03] border border-white/[0.06] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 focus:outline-none transition-all"
+            />
+            <button
+              onClick={handleUrlSubmit}
+              disabled={isUploading || !urlValue.trim()}
+              className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98] whitespace-nowrap"
+            >
+              {isUploading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  Fetching...
+                </span>
+              ) : (
+                "Fetch & Convert"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Text input mode */}
+      {inputMode === "text" && (
+        <div className="glass rounded-2xl p-8 space-y-4">
+          <textarea
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            placeholder="Paste or type text here..."
+            rows={8}
+            className="w-full px-5 py-4 bg-white/[0.03] border border-white/[0.06] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 focus:outline-none transition-all resize-none"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={handleTextSubmit}
+              disabled={isUploading || !textValue.trim()}
+              className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
+            >
+              {isUploading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  Converting...
+                </span>
+              ) : (
+                "Convert Text"
+              )}
+            </button>
+          </div>
+        </div>
       )}
 
       {error && (
