@@ -356,7 +356,7 @@ export default function LibraryPage() {
             </h3>
             <div className="space-y-1">
               <button
-                onClick={() => { setActiveCollection(null); setSidebarOpen(false); }}
+                onClick={() => { setActiveCollection(null); setFileTypeFilter("all"); setStatusFilter("all"); setSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   activeCollection === null
                     ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
@@ -382,7 +382,7 @@ export default function LibraryPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                     transition={{ duration: 0.2 }}
-                    onClick={() => { setActiveCollection(col.id); setSidebarOpen(false); }}
+                    onClick={() => { setActiveCollection(col.id); setFileTypeFilter("all"); setStatusFilter("all"); setSidebarOpen(false); }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       handleDeleteCollection(col.id);
@@ -564,6 +564,9 @@ export default function LibraryPage() {
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {filteredDocs.length} {filteredDocs.length === 1 ? "document" : "documents"}
+              {(fileTypeFilter !== "all" || statusFilter !== "all") && filteredDocs.length === 0 && (
+                <span className="ml-2 text-amber-400/80 text-xs">(filters active)</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">
