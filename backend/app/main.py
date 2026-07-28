@@ -68,10 +68,17 @@ async def get_voices():
 @app.get("/api/voices/preview/{voice_id}")
 async def preview_voice(voice_id: str):
     import io
+    from app.tts.edge import _synthesize_chunk_edge, VOICES
+
+    voice_info = VOICES.get(voice_id, VOICES.get("Joanna"))
+    if not voice_info:
+        raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
 
     sample_text = "Here's a quick preview of how I sound reading your documents."
     try:
-        audio_bytes = get_synthesize_fn()(sample_text, voice_id)
+        audio_bytes = _synthesize_chunk_edge(sample_text, voice_info["id"])
+        if not audio_bytes:
+            raise HTTPException(status_code=500, detail="No audio generated")
         return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")

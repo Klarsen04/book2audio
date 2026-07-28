@@ -51,7 +51,7 @@ export default function SettingsPage() {
         {/* Playback speed */}
         <div className="glass-strong rounded-2xl p-6">
           <h3 className="text-sm font-semibold text-gray-200 mb-4">Default Playback Speed</h3>
-          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((s) => (
               <button
                 key={s}

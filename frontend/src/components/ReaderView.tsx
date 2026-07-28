@@ -309,7 +309,7 @@ export default function ReaderView({
 
             {/* Settings Panel */}
             {showSettings && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-72 glass-strong rounded-xl shadow-2xl border border-white/[0.08] p-4 space-y-4">
+              <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-[#1a1a1a] rounded-xl shadow-2xl border border-white/[0.1] p-4 space-y-4">
                 {/* Font Family */}
                 <div>
                   <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">

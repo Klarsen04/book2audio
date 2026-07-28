@@ -50,6 +50,7 @@ export default function LibraryPage() {
   const [editMode, setEditMode] = useState(false);
   const [documentOrder, setDocumentOrder] = useState<string[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: "collection" | "document"; id: string } | null>(null);
 
   // Load document order from localStorage
   useEffect(() => {
@@ -146,7 +147,10 @@ export default function LibraryPage() {
   };
 
   const handleDeleteCollection = (collectionId: string) => {
-    if (!confirm("Delete this collection?")) return;
+    setConfirmDelete({ type: "collection", id: collectionId });
+  };
+
+  const executeDeleteCollection = (collectionId: string) => {
     const updated = collections.filter((c) => c.id !== collectionId);
     saveCollections(updated);
     if (activeCollection === collectionId) {
@@ -189,8 +193,26 @@ export default function LibraryPage() {
     fetchDocuments();
   }, []);
 
-  const handleDelete = async (docId: string) => {
-    if (!confirm("Delete this document and its audio?")) return;
+  // Clean up stale document IDs from collections after documents load
+  useEffect(() => {
+    if (documents.length === 0 && loading) return;
+    const validIds = new Set(documents.map(d => d.id));
+    const needsCleanup = collections.some(c => c.doc_ids.some(id => !validIds.has(id)));
+    if (needsCleanup) {
+      const cleaned = collections.map(c => ({
+        ...c,
+        doc_ids: c.doc_ids.filter(id => validIds.has(id))
+      }));
+      saveCollections(cleaned);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents, loading]);
+
+  const handleDelete = (docId: string) => {
+    setConfirmDelete({ type: "document", id: docId });
+  };
+
+  const executeDeleteDocument = async (docId: string) => {
     await api.delete(`/api/library/${docId}`);
     setDocuments((docs) => docs.filter((d) => d.id !== docId));
   };
@@ -221,8 +243,8 @@ export default function LibraryPage() {
         const allowedFormats = formatMap[fileTypeFilter] || [];
         if (!allowedFormats.includes(d.format?.toLowerCase())) return false;
       }
-      // Status filter
-      if (statusFilter !== "all" && d.status !== statusFilter) return false;
+      // Status filter (case-insensitive to handle backend variations)
+      if (statusFilter !== "all" && d.status?.toLowerCase() !== statusFilter) return false;
       return true;
     })
     .filter((d) => !search || d.title.toLowerCase().includes(search.toLowerCase()))
@@ -438,7 +460,7 @@ export default function LibraryPage() {
                   onClick={() => { setFileTypeFilter(item.key); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
                     fileTypeFilter === item.key
-                      ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
+                      ? "bg-purple-600/15 text-purple-300 font-medium border border-purple-500/20 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
                       : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
                   }`}
                 >
@@ -482,7 +504,7 @@ export default function LibraryPage() {
                   onClick={() => { setStatusFilter(item.key); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
                     statusFilter === item.key
-                      ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
+                      ? "bg-purple-600/15 text-purple-300 font-medium border border-purple-500/20 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
                       : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
                   }`}
                 >
@@ -803,6 +825,58 @@ export default function LibraryPage() {
           </div>
         )}
       </main>
+
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
+            onClick={() => setConfirmDelete(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="bg-[#1a1a1a] rounded-2xl border border-white/[0.1] shadow-2xl p-6 w-80 max-w-[90vw]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-white mb-2">
+                {confirmDelete.type === "collection" ? "Delete collection?" : "Delete document?"}
+              </h3>
+              <p className="text-sm text-gray-400 mb-6">
+                {confirmDelete.type === "collection"
+                  ? "This collection will be removed. Documents inside it will not be deleted."
+                  : "This document and its audio will be permanently deleted."}
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirmDelete.type === "collection") {
+                      executeDeleteCollection(confirmDelete.id);
+                    } else {
+                      executeDeleteDocument(confirmDelete.id);
+                    }
+                    setConfirmDelete(null);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

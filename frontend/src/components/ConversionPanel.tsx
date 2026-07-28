@@ -29,7 +29,12 @@ export default function ConversionPanel({
   onBack,
 }: Props) {
   const [voices, setVoices] = useState<Voice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState("Joanna");
+  const [selectedVoice, setSelectedVoice] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem("default_voice") || "Joanna";
+    }
+    return "Joanna";
+  });
   const [audioType, setAudioType] = useState("full");
   const [additionalContext, setAdditionalContext] = useState(false);
   const [isConverting, setIsConverting] = useState(false);

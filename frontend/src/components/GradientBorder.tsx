@@ -8,7 +8,7 @@ interface Props {
 
 export default function GradientBorder({ children, className = "", animate = true }: Props) {
   return (
-    <div className={`relative p-[1px] rounded-2xl overflow-hidden ${className}`}>
+    <div className={`relative p-[1px] rounded-2xl overflow-visible ${className}`}>
       <div
         className={`absolute inset-0 bg-gradient-to-r from-purple-600 via-blue-500 to-emerald-500 ${
           animate ? "animate-gradient bg-[length:200%_200%]" : ""
