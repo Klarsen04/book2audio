@@ -27,7 +27,7 @@ export default function AudioPlayer({
   onPlayingChange,
   onTimeUpdate,
 }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -41,6 +41,18 @@ export default function AudioPlayer({
   const [audioLoading, setAudioLoading] = useState(true);
   const lastSavedPosition = useRef(0);
 
+  // Create audio element imperatively (not via JSX) to avoid React re-render issues
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
+  }, []);
+
   useEffect(() => {
     setAudioLoading(true);
     fetch(`/api/download/${docId}`, { credentials: "include" })
@@ -51,9 +63,16 @@ export default function AudioPlayer({
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
+        if (audioRef.current) {
+          audioRef.current.src = url;
+        }
       })
       .catch(() => {
-        setAudioUrl(`/api/download/${docId}`);
+        const fallback = `/api/download/${docId}`;
+        setAudioUrl(fallback);
+        if (audioRef.current) {
+          audioRef.current.src = fallback;
+        }
       })
       .finally(() => setAudioLoading(false));
 
@@ -202,7 +221,7 @@ export default function AudioPlayer({
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [audioUrl, positionLoaded, savePosition, onTimeUpdate, onPlayingChange]);
+  }, [audioUrl, positionLoaded, savePosition]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -372,7 +391,7 @@ export default function AudioPlayer({
         </button>
       </div>
 
-      <audio ref={audioRef} src={audioUrl || undefined} preload="auto" />
+      {/* Audio element created imperatively via useEffect - no JSX element needed */}
       {audioLoading && (
         <div className="flex items-center justify-center py-2">
           <div className="w-4 h-4 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
