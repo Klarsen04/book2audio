@@ -20,8 +20,6 @@ interface Voice {
   engine: string;
 }
 
-const PREVIEW_AVAILABLE = ["matthew", "joanna", "amy", "brian", "ruth"];
-
 export default function ConversionPanel({
   jobId,
   title,
@@ -99,10 +97,7 @@ export default function ConversionPanel({
       return;
     }
 
-    const name = voiceId.toLowerCase();
-    if (!PREVIEW_AVAILABLE.includes(name)) return;
-
-    audio.src = `/samples/preview-${name}.mp3`;
+    audio.src = `/api/voices/preview/${voiceId}`;
     audio.play().catch(() => {});
     setPreviewPlaying(voiceId);
   };
@@ -254,49 +249,44 @@ export default function ConversionPanel({
           <span className="text-xs text-gray-500">Click speaker icon to preview</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {voices.map((voice) => {
-            const hasPreview = PREVIEW_AVAILABLE.includes(voice.id.toLowerCase());
-            return (
-              <div key={voice.id} className="relative">
-                <button
-                  onClick={() => setSelectedVoice(voice.id)}
-                  disabled={isConverting}
-                  className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
-                    selectedVoice === voice.id
-                      ? "bg-purple-600/20 border border-purple-500/40 text-white"
-                      : "bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:bg-white/[0.06] hover:border-white/[0.1]"
-                  } disabled:opacity-50`}
-                >
-                  <span className="block">{voice.id}</span>
-                  <span className="block text-xs opacity-50 mt-0.5">{voice.gender}</span>
-                </button>
-                {hasPreview && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      playPreview(voice.id);
-                    }}
-                    className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                      previewPlaying === voice.id
-                        ? "bg-purple-500 text-white scale-110"
-                        : "bg-white/[0.08] text-gray-400 hover:bg-white/[0.15] hover:text-white"
-                    }`}
-                    title={`Preview ${voice.id}`}
-                  >
-                    {previewPlaying === voice.id ? (
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                      </svg>
-                    )}
-                  </button>
+          {voices.map((voice) => (
+            <div key={voice.id} className="relative">
+              <button
+                onClick={() => setSelectedVoice(voice.id)}
+                disabled={isConverting}
+                className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+                  selectedVoice === voice.id
+                    ? "bg-purple-600/20 border border-purple-500/40 text-white"
+                    : "bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:bg-white/[0.06] hover:border-white/[0.1]"
+                } disabled:opacity-50`}
+              >
+                <span className="block">{voice.id}</span>
+                <span className="block text-xs opacity-50 mt-0.5">{voice.gender}</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playPreview(voice.id);
+                }}
+                className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  previewPlaying === voice.id
+                    ? "bg-purple-500 text-white scale-110"
+                    : "bg-white/[0.08] text-gray-400 hover:bg-white/[0.15] hover:text-white"
+                }`}
+                title={`Preview ${voice.id}`}
+              >
+                {previewPlaying === voice.id ? (
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                  </svg>
                 )}
-              </div>
-            );
-          })}
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 

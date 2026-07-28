@@ -18,6 +18,7 @@ const PRESETS = {
 export default function StudyTimer({ onTimerEnd }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [mode, setMode] = useState<Mode>("focus");
   const [remaining, setRemaining] = useState(0);
   const [preset, setPreset] = useState<keyof typeof PRESETS>("pomodoro");
@@ -25,7 +26,7 @@ export default function StudyTimer({ onTimerEnd }: Props) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!isRunning || remaining <= 0) return;
+    if (!isRunning || isPaused || remaining <= 0) return;
 
     intervalRef.current = setInterval(() => {
       setRemaining((prev) => {
@@ -49,18 +50,25 @@ export default function StudyTimer({ onTimerEnd }: Props) {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, remaining, mode, preset, onTimerEnd]);
+  }, [isRunning, isPaused, remaining, mode, preset, onTimerEnd]);
 
   const start = (p: keyof typeof PRESETS) => {
     setPreset(p);
     setMode("focus");
     setRemaining(PRESETS[p].focus * 60);
     setIsRunning(true);
+    setIsPaused(false);
     setIsOpen(false);
   };
 
-  const stop = () => {
+  const pause = () => {
+    setIsPaused((prev) => !prev);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+
+  const reset = () => {
     setIsRunning(false);
+    setIsPaused(false);
     setRemaining(0);
     if (intervalRef.current) clearInterval(intervalRef.current);
   };
@@ -77,27 +85,63 @@ export default function StudyTimer({ onTimerEnd }: Props) {
 
   return (
     <div className="relative">
-      <button
-        onClick={() => (isRunning ? stop() : setIsOpen(!isOpen))}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-          isRunning
-            ? mode === "focus"
-              ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
-              : "bg-amber-600/20 text-amber-300 border border-amber-500/30"
-            : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
-        }`}
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        {isRunning ? (
-          <span>
-            {mode === "focus" ? "Focus" : "Break"} {formatTime(remaining)}
-          </span>
-        ) : (
-          "Study Timer"
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => (!isRunning ? setIsOpen(!isOpen) : undefined)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            isRunning
+              ? mode === "focus"
+                ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
+                : "bg-amber-600/20 text-amber-300 border border-amber-500/30"
+              : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {isRunning ? (
+            <span>
+              {mode === "focus" ? "Focus" : "Break"} {formatTime(remaining)}
+              {isPaused && <span className="ml-1 text-gray-400">(paused)</span>}
+            </span>
+          ) : (
+            "Study Timer"
+          )}
+        </button>
+
+        {isRunning && (
+          <>
+            <button
+              onClick={pause}
+              className={`p-1.5 rounded-lg text-xs transition-all ${
+                isPaused
+                  ? "bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30"
+                  : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+              }`}
+              title={isPaused ? "Resume" : "Pause"}
+            >
+              {isPaused ? (
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={reset}
+              className="p-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              title="Reset timer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </>
         )}
-      </button>
+      </div>
 
       {isRunning && (
         <div className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-white/[0.06] overflow-hidden">

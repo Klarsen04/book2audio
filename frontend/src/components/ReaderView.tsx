@@ -54,7 +54,7 @@ export default function ReaderView({
   onPlayFromText,
   isPlaying,
   chapterProgress = 0,
-  searchQuery: _searchQuery,
+  searchQuery,
 }: Props) {
   const [selectedChapter, setSelectedChapter] = useState(currentChapterIndex);
   const [showToc, setShowToc] = useState(true);
@@ -63,10 +63,16 @@ export default function ReaderView({
   const [confirmPosition, setConfirmPosition] = useState({ x: 0, y: 0 });
   const [showSettings, setShowSettings] = useState(false);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
+  const [matchCount, setMatchCount] = useState(0);
   const textRef = useRef<HTMLDivElement>(null);
   const tocRef = useRef<HTMLDivElement>(null);
   const chapterRefs = useRef<(HTMLDivElement | null)[]>([]);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const firstMatchRef = useRef<HTMLElement | null>(null);
+  const hasScrolledToMatch = useRef<string>("");
+  const lastScrolledParagraphRef = useRef<number>(-1);
+  const autoScrollPausedUntilRef = useRef<number>(0);
+  const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([]);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -103,6 +109,58 @@ export default function ReaderView({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showSettings]);
 
+  // Pause auto-scroll for 5 seconds when user manually scrolls the reader
+  useEffect(() => {
+    const container = document.getElementById("reader-scroll-container");
+    if (!container) return;
+
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    const handleScroll = () => {
+      // Only treat as user scroll if auto-scroll didn't just fire
+      if (Date.now() < autoScrollPausedUntilRef.current) return;
+      autoScrollPausedUntilRef.current = Date.now() + 5000;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, []);
+
+  // Auto-scroll to active paragraph only when it changes and user hasn't scrolled recently
+  useEffect(() => {
+    if (!isPlaying || selectedChapter !== currentChapterIndex) return;
+    const currentChapter = chapters[selectedChapter];
+    if (!currentChapter?.text) return;
+
+    const paragraphs = currentChapter.text.split("\n");
+    let activeIndex = -1;
+    for (let i = 0; i < paragraphs.length; i++) {
+      const fraction = paragraphs.length > 0 ? i / paragraphs.length : 0;
+      if (Math.abs(fraction - chapterProgress) < 1 / Math.max(paragraphs.length, 1)) {
+        activeIndex = i;
+        break;
+      }
+    }
+
+    if (activeIndex < 0) return;
+    if (activeIndex === lastScrolledParagraphRef.current) return;
+
+    const now = Date.now();
+    if (now < autoScrollPausedUntilRef.current) return;
+
+    lastScrolledParagraphRef.current = activeIndex;
+    // Temporarily mark as programmatic scroll so the scroll listener ignores it
+    autoScrollPausedUntilRef.current = now + 600;
+
+    const el = paragraphRefs.current[activeIndex];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [isPlaying, selectedChapter, currentChapterIndex, chapterProgress, chapters]);
+
   useEffect(() => {
     setSelectedChapter(currentChapterIndex);
     const el = chapterRefs.current[currentChapterIndex];
@@ -110,6 +168,59 @@ export default function ReaderView({
       el.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [currentChapterIndex]);
+
+  // Count search matches and scroll to first match when query changes
+  const chapter = chapters[selectedChapter];
+
+  useEffect(() => {
+    if (!searchQuery || !chapter?.text) {
+      setMatchCount(0);
+      return;
+    }
+    const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    const matches = chapter.text.match(regex);
+    setMatchCount(matches ? matches.length : 0);
+
+    // Scroll to first match when query changes
+    if (matches && matches.length > 0 && hasScrolledToMatch.current !== searchQuery) {
+      hasScrolledToMatch.current = searchQuery;
+      // Small delay to let the DOM render the highlights
+      setTimeout(() => {
+        if (firstMatchRef.current) {
+          firstMatchRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
+    }
+  }, [searchQuery, chapter]);
+
+  // Helper to render text with search highlights
+  const renderHighlightedText = (text: string, isFirstParagraphWithMatch: { value: boolean }) => {
+    if (!searchQuery) return text;
+    const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(${escaped})`, "gi");
+    const parts = text.split(regex);
+    if (parts.length === 1) return text;
+
+    return parts.map((part, idx) => {
+      if (regex.test(part)) {
+        // Reset regex lastIndex since we use test
+        regex.lastIndex = 0;
+        const isFirst = isFirstParagraphWithMatch.value;
+        isFirstParagraphWithMatch.value = false;
+        return (
+          <mark
+            key={idx}
+            ref={isFirst ? (el) => { firstMatchRef.current = el; } : undefined}
+            className="bg-amber-400/30 text-amber-200 rounded-sm px-0.5"
+          >
+            {part}
+          </mark>
+        );
+      }
+      regex.lastIndex = 0;
+      return part;
+    });
+  };
 
   const handleChapterClick = (index: number) => {
     setSelectedChapter(index);
@@ -146,8 +257,6 @@ export default function ReaderView({
     setShowPlayConfirm(false);
     window.getSelection()?.removeAllRanges();
   };
-
-  const chapter = chapters[selectedChapter];
 
   return (
     <div className="glass-strong rounded-2xl overflow-hidden">
@@ -352,7 +461,19 @@ export default function ReaderView({
 
         {/* Reader Content */}
         <div className="flex-1 max-h-[500px] overflow-y-auto p-8 relative" id="reader-scroll-container">
-          <h3 className="text-xl font-semibold text-white mb-6">{chapter?.title}</h3>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-semibold text-white">{chapter?.title}</h3>
+            {searchQuery && matchCount > 0 && (
+              <span className="text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+                {matchCount} match{matchCount !== 1 ? "es" : ""} found
+              </span>
+            )}
+            {searchQuery && matchCount === 0 && (
+              <span className="text-xs text-gray-500 bg-white/[0.04] px-2.5 py-1 rounded-full">
+                No matches
+              </span>
+            )}
+          </div>
 
           {chapter?.text ? (
             <div
@@ -366,27 +487,27 @@ export default function ReaderView({
                 maxWidth: TEXT_WIDTH_MAP[readerSettings.textWidth],
               }}
             >
-              {chapter.text.split("\n").map((paragraph, i, arr) => {
-                const paragraphFraction = arr.length > 0 ? i / arr.length : 0;
-                const isActive = isPlaying &&
-                  selectedChapter === currentChapterIndex &&
-                  Math.abs(paragraphFraction - chapterProgress) < 1 / Math.max(arr.length, 1);
-                return (
-                  <p
-                    key={i}
-                    ref={(el) => {
-                      if (isActive && el) {
-                        el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      }
-                    }}
-                    className={`mb-4 transition-colors duration-500 rounded-lg ${
-                      isActive ? "text-white bg-purple-500/5 -mx-2 px-2 py-1" : "text-gray-400"
-                    }`}
-                  >
-                    {paragraph}
-                  </p>
-                );
-              })}
+              {(() => {
+                const isFirstMatch = { value: true };
+                return chapter.text.split("\n").map((paragraph, i, arr) => {
+                  const paragraphFraction = arr.length > 0 ? i / arr.length : 0;
+                  const isActive = isPlaying &&
+                    selectedChapter === currentChapterIndex &&
+                    Math.abs(paragraphFraction - chapterProgress) < 1 / Math.max(arr.length, 1);
+
+                  return (
+                    <p
+                      key={i}
+                      ref={(el) => { paragraphRefs.current[i] = el; }}
+                      className={`mb-4 transition-colors duration-500 rounded-lg ${
+                        isActive ? "text-white bg-purple-500/5 -mx-2 px-2 py-1" : "text-gray-400"
+                      }`}
+                    >
+                      {renderHighlightedText(paragraph, isFirstMatch)}
+                    </p>
+                  );
+                });
+              })()}
             </div>
           ) : (
             <p className="text-gray-500 italic">Chapter text not available for this document.</p>

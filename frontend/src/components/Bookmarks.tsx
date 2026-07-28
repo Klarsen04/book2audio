@@ -75,12 +75,15 @@ export default function Bookmarks({ docId, currentTime, onSeek }: Props) {
         <button
           onClick={addBookmark}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
-          title="Add bookmark at current position"
+          title="Bookmark at current playback position"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          Bookmark
+          <span className="flex flex-col items-start leading-tight">
+            <span>Bookmark {formatTime(currentTime)}</span>
+            <span className="text-[9px] text-gray-500 font-normal">at current position</span>
+          </span>
         </button>
 
         {bookmarks.length > 0 && (

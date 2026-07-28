@@ -6,7 +6,7 @@ from threading import Thread
 
 from fastapi import FastAPI, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.database import init_db, get_db
 from app.parsers.extractor import extract_text
@@ -61,6 +61,18 @@ async def health_check():
 @app.get("/api/voices")
 async def get_voices():
     return {"voices": get_voices_fn()()}
+
+
+@app.get("/api/voices/preview/{voice_id}")
+async def preview_voice(voice_id: str):
+    import io
+
+    sample_text = "Here's a quick preview of how I sound reading your documents."
+    try:
+        audio_bytes = get_synthesize_fn()(sample_text, voice_id)
+        return StreamingResponse(io.BytesIO(audio_bytes), media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
 
 
 @app.post("/api/upload")
