@@ -4,12 +4,14 @@ import os
 from pathlib import Path
 from threading import Thread
 
+import httpx
 from fastapi import FastAPI, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
 
 from app.database import init_db, get_db
-from app.parsers.extractor import extract_text
+from app.parsers.extractor import extract_text, extract_from_pdf, extract_from_txt, BookContent, Chapter
 from app.tts.provider import get_synthesize_fn, get_voices_fn
 from app.auth.dependencies import get_current_user
 from app.auth.router import router as auth_router
@@ -116,6 +118,137 @@ async def upload_file(file: UploadFile, user: dict = Depends(get_current_user)):
         )
 
     # Store parsed content in memory for the conversion step
+    conversion_progress[doc_id] = {
+        "content": content,
+        "status": "uploaded",
+        "progress": 0,
+        "current_chapter": 0,
+        "total_chapters": len(content.chapters),
+    }
+
+    return {
+        "job_id": doc_id,
+        "title": content.title,
+        "chapters": chapters_meta,
+        "total_word_count": content.word_count,
+    }
+
+
+class UploadUrlRequest(BaseModel):
+    url: str
+
+
+class UploadTextRequest(BaseModel):
+    text: str
+    title: str = "Pasted text"
+
+
+@app.post("/api/upload-url")
+async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_current_user)):
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            resp = await client.get(body.url)
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: HTTP {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
+
+    content_type = resp.headers.get("content-type", "")
+    raw_bytes = resp.content
+
+    try:
+        if "application/pdf" in content_type or body.url.lower().endswith(".pdf"):
+            content = extract_from_pdf(raw_bytes)
+        else:
+            # Treat as HTML: extract text from paragraphs
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(raw_bytes, "html.parser")
+            title = soup.title.string.strip() if soup.title and soup.title.string else "Untitled"
+            paragraphs = soup.find_all("p")
+            text = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+            if not text.strip():
+                # Fallback: get all visible text
+                text = soup.get_text(separator="\n", strip=True)
+            content = BookContent(
+                title=title,
+                chapters=[Chapter(title="Full Text", text=text.strip())],
+                word_count=len(text.split()),
+            )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse content: {str(e)}")
+
+    doc_id = str(uuid.uuid4())
+    fmt = "pdf" if ("application/pdf" in content_type or body.url.lower().endswith(".pdf")) else "html"
+    chapters_data = [{"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text} for ch in content.chapters]
+    chapters_meta = [{"title": ch.title, "word_count": len(ch.text.split())} for ch in content.chapters]
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO documents (id, user_id, filename, title, file_size, format, chapters_json, total_word_count, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                doc_id,
+                user["id"],
+                body.url,
+                content.title,
+                len(raw_bytes),
+                fmt,
+                json.dumps(chapters_data),
+                content.word_count,
+                "uploaded",
+            ),
+        )
+
+    conversion_progress[doc_id] = {
+        "content": content,
+        "status": "uploaded",
+        "progress": 0,
+        "current_chapter": 0,
+        "total_chapters": len(content.chapters),
+    }
+
+    return {
+        "job_id": doc_id,
+        "title": content.title,
+        "chapters": chapters_meta,
+        "total_word_count": content.word_count,
+    }
+
+
+@app.post("/api/upload-text")
+async def upload_text(body: UploadTextRequest, user: dict = Depends(get_current_user)):
+    if not body.text.strip():
+        raise HTTPException(status_code=400, detail="No text provided")
+
+    try:
+        content = extract_from_txt(body.text.encode("utf-8"))
+        # Override the title with the user-provided one
+        content = BookContent(title=body.title, chapters=content.chapters, word_count=content.word_count)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse text: {str(e)}")
+
+    doc_id = str(uuid.uuid4())
+    chapters_data = [{"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text} for ch in content.chapters]
+    chapters_meta = [{"title": ch.title, "word_count": len(ch.text.split())} for ch in content.chapters]
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO documents (id, user_id, filename, title, file_size, format, chapters_json, total_word_count, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                doc_id,
+                user["id"],
+                f"{body.title}.txt",
+                content.title,
+                len(body.text.encode("utf-8")),
+                "txt",
+                json.dumps(chapters_data),
+                content.word_count,
+                "uploaded",
+            ),
+        )
+
     conversion_progress[doc_id] = {
         "content": content,
         "status": "uploaded",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Bookmark {
@@ -29,8 +29,20 @@ export default function Bookmarks({ docId, currentTime, onSeek }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const storageKey = `bookmarks_${docId}`;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
   useEffect(() => {
     const saved = localStorage.getItem(storageKey);
@@ -70,7 +82,7 @@ export default function Bookmarks({ docId, currentTime, onSeek }: Props) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-2">
         <button
           onClick={addBookmark}
@@ -80,9 +92,9 @@ export default function Bookmarks({ docId, currentTime, onSeek }: Props) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
-          <span className="flex flex-col items-start leading-tight">
+          <span className="flex flex-col items-start leading-tight gap-0.5">
             <span>Bookmark {formatTime(currentTime)}</span>
-            <span className="text-[9px] text-gray-500 font-normal">at current position</span>
+            <span className="text-[9px] text-gray-500 font-normal leading-none">at current position</span>
           </span>
         </button>
 

@@ -171,10 +171,12 @@ export default function ReaderView({
 
   // Count search matches and scroll to first match when query changes
   const chapter = chapters[selectedChapter];
+  const [otherChapterMatches, setOtherChapterMatches] = useState<{ index: number; title: string; count: number }[]>([]);
 
   useEffect(() => {
     if (!searchQuery || !chapter?.text) {
       setMatchCount(0);
+      setOtherChapterMatches([]);
       return;
     }
     const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
@@ -191,7 +193,23 @@ export default function ReaderView({
         }
       }, 100);
     }
-  }, [searchQuery, chapter]);
+
+    // If no matches in current chapter, search all other chapters
+    if (!matches || matches.length === 0) {
+      const otherMatches: { index: number; title: string; count: number }[] = [];
+      chapters.forEach((ch, i) => {
+        if (i === selectedChapter || !ch.text) return;
+        const chRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+        const chMatches = ch.text.match(chRegex);
+        if (chMatches && chMatches.length > 0) {
+          otherMatches.push({ index: i, title: ch.title, count: chMatches.length });
+        }
+      });
+      setOtherChapterMatches(otherMatches);
+    } else {
+      setOtherChapterMatches([]);
+    }
+  }, [searchQuery, chapter, chapters, selectedChapter]);
 
   // Helper to render text with search highlights
   const renderHighlightedText = (text: string, isFirstParagraphWithMatch: { value: boolean }) => {
@@ -470,10 +488,33 @@ export default function ReaderView({
             )}
             {searchQuery && matchCount === 0 && (
               <span className="text-xs text-gray-500 bg-white/[0.04] px-2.5 py-1 rounded-full">
-                No matches
+                No matches in this chapter
               </span>
             )}
           </div>
+
+          {/* Cross-chapter search results */}
+          {searchQuery && matchCount === 0 && otherChapterMatches.length > 0 && (
+            <div className="mb-6 p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+              <p className="text-xs text-amber-300 font-medium mb-2">
+                Found in other chapters:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {otherChapterMatches.map((match) => (
+                  <button
+                    key={match.index}
+                    onClick={() => {
+                      setSelectedChapter(match.index);
+                      setShowToc(false);
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100 transition-all"
+                  >
+                    {match.title} ({match.count} match{match.count !== 1 ? "es" : ""})
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {chapter?.text ? (
             <div

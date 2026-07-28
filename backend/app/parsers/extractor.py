@@ -193,4 +193,8 @@ def extract_text(filename: str, file_bytes: bytes) -> BookContent:
     extractor = EXTRACTORS.get(ext)
     if not extractor:
         raise ValueError(f"Unsupported file format: {ext}")
-    return extractor(file_bytes)
+    result = extractor(file_bytes)
+    # If the extractor couldn't determine a title, use the filename stem
+    if result.title == "Untitled":
+        result.title = Path(filename).stem
+    return result

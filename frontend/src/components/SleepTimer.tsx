@@ -22,6 +22,18 @@ export default function SleepTimer({ onTimerEnd, onFadeStart }: Props) {
   const [remaining, setRemaining] = useState<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const fadeStarted = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
   useEffect(() => {
     if (remaining === null) return;
@@ -66,7 +78,7 @@ export default function SleepTimer({ onTimerEnd, onFadeStart }: Props) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         onClick={() => (remaining ? cancelTimer() : setIsOpen(!isOpen))}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all font-medium ${
