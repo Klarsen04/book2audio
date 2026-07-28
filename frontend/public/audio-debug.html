@@ -10,6 +10,8 @@ function log(msg) {
   console.log(msg);
 }
 
+let audioElement = null;
+
 async function test() {
   log('1. Fetching /api/auth/me to check auth...');
   try {
@@ -26,7 +28,7 @@ async function test() {
   const lib = await libRes.json();
   const docs = lib.documents || [];
   log('   Found ' + docs.length + ' documents');
-  
+
   const completed = docs.find(d => d.status === 'completed');
   if (!completed) {
     log('   ERROR: No completed documents found');
@@ -39,68 +41,82 @@ async function test() {
   log('   Status: ' + dlRes.status);
   log('   Content-Type: ' + dlRes.headers.get('content-type'));
   log('   Content-Length: ' + dlRes.headers.get('content-length'));
-  
+
   const blob = await dlRes.blob();
   log('   Blob size: ' + blob.size + ', type: "' + blob.type + '"');
-  
+
   const url = URL.createObjectURL(blob);
   log('   Blob URL: ' + url);
 
-  log('4. Creating audio element and playing...');
-  const audio = new Audio();
-  
-  audio.addEventListener('loadedmetadata', () => {
-    log('   EVENT loadedmetadata: duration=' + audio.duration);
+  log('4. Setting up audio element...');
+  audioElement = new Audio();
+
+  audioElement.addEventListener('loadedmetadata', () => {
+    log('   EVENT loadedmetadata: duration=' + audioElement.duration);
   });
-  audio.addEventListener('canplay', () => {
-    log('   EVENT canplay');
+  audioElement.addEventListener('canplay', () => {
+    log('   EVENT canplay - ready to play');
   });
-  audio.addEventListener('playing', () => {
-    log('   EVENT playing');
+  audioElement.addEventListener('playing', () => {
+    log('   EVENT playing - audio is now playing!');
   });
-  audio.addEventListener('timeupdate', () => {
-    log('   EVENT timeupdate: currentTime=' + audio.currentTime.toFixed(2));
+  audioElement.addEventListener('timeupdate', () => {
+    if (Math.floor(audioElement.currentTime) % 1 === 0) {
+      log('   EVENT timeupdate: ' + audioElement.currentTime.toFixed(2) + 's');
+    }
   });
-  audio.addEventListener('error', (e) => {
-    log('   EVENT error: ' + audio.error?.message + ' code=' + audio.error?.code);
+  audioElement.addEventListener('error', () => {
+    log('   EVENT error: ' + (audioElement.error?.message || 'unknown') + ' code=' + audioElement.error?.code);
   });
-  audio.addEventListener('stalled', () => {
-    log('   EVENT stalled');
+  audioElement.addEventListener('stalled', () => {
+    log('   EVENT stalled - browser trying to fetch but no data');
   });
-  audio.addEventListener('waiting', () => {
-    log('   EVENT waiting');
-  });
-  audio.addEventListener('suspend', () => {
-    log('   EVENT suspend');
-  });
-  
-  audio.src = url;
-  audio.volume = 1;
-  log('   Set src and volume=1, calling play()...');
-  
+
+  audioElement.src = url;
+  audioElement.volume = 1;
+  log('   Audio element ready. Blob loaded.');
+  log('');
+  log('   ▼▼▼ CLICK THE BUTTON BELOW TO PLAY ▼▼▼');
+}
+
+async function doPlay() {
+  if (!audioElement) { log('ERROR: audio not loaded yet'); return; }
+  log('');
+  log('=== PLAY BUTTON CLICKED (user gesture) ===');
+  log('   Calling audio.play()...');
   try {
-    await audio.play();
-    log('   play() resolved successfully');
-    log('   paused=' + audio.paused + ' volume=' + audio.volume + ' muted=' + audio.muted);
-    log('   currentTime=' + audio.currentTime + ' duration=' + audio.duration);
-    log('   readyState=' + audio.readyState + ' networkState=' + audio.networkState);
+    await audioElement.play();
+    log('   ✓ play() resolved - audio should be playing');
+    log('   paused=' + audioElement.paused);
+    log('   volume=' + audioElement.volume);
+    log('   muted=' + audioElement.muted);
+    log('   currentTime=' + audioElement.currentTime);
+    log('   duration=' + audioElement.duration);
+    log('   readyState=' + audioElement.readyState);
   } catch(e) {
-    log('   play() REJECTED: ' + e.name + ': ' + e.message);
+    log('   ✗ play() REJECTED: ' + e.name + ': ' + e.message);
   }
 
-  // Check after 2 seconds
   setTimeout(() => {
-    log('5. After 2 seconds:');
-    log('   currentTime=' + audio.currentTime.toFixed(2) + ' paused=' + audio.paused);
-    if (audio.currentTime === 0 && !audio.paused) {
-      log('   ⚠️ STUCK: audio says playing but currentTime is still 0!');
-    } else if (audio.currentTime > 0) {
-      log('   ✓ Audio is advancing! currentTime=' + audio.currentTime.toFixed(2));
+    log('');
+    log('=== 3 SECONDS LATER ===');
+    log('   currentTime=' + audioElement.currentTime.toFixed(2));
+    log('   paused=' + audioElement.paused);
+    if (audioElement.currentTime > 0.5) {
+      log('   ✓✓✓ AUDIO IS WORKING! You should hear sound. ✓✓✓');
+    } else if (!audioElement.paused) {
+      log('   ⚠️ Says playing but time not advancing - DECODE ISSUE');
+    } else {
+      log('   ✗ Audio is paused - browser blocked playback');
     }
-  }, 2000);
+  }, 3000);
 }
 
 test();
 </script>
+<br><br>
+<button onclick="doPlay()" style="font-size:24px;padding:20px 40px;cursor:pointer;background:#7c3aed;color:white;border:none;border-radius:12px;margin-top:10px">
+  ▶ CLICK HERE TO PLAY AUDIO
+</button>
 </body>
 </html>
