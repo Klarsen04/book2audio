@@ -43,10 +43,13 @@ export default function AudioPlayer({
 
   useEffect(() => {
     setAudioLoading(true);
-    api
-      .get(`/api/download/${docId}`, { responseType: "blob" })
+    fetch(`/api/download/${docId}`, { credentials: "include" })
       .then((res) => {
-        const url = URL.createObjectURL(res.data);
+        if (!res.ok) throw new Error("Download failed");
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
         setAudioUrl(url);
       })
       .catch(() => {
@@ -245,6 +248,7 @@ export default function AudioPlayer({
 
   const togglePlay = async () => {
     const audio = audioRef.current;
+    console.log("[AudioPlayer] togglePlay called", { audio: !!audio, audioUrl: !!audioUrl, isPlaying, src: audio?.src });
     if (!audio || !audioUrl) return;
     if (isPlaying) {
       audio.pause();
@@ -254,10 +258,11 @@ export default function AudioPlayer({
     } else {
       try {
         await audio.play();
+        console.log("[AudioPlayer] play() resolved", { currentTime: audio.currentTime, paused: audio.paused });
         setIsPlaying(true);
         onPlayingChange?.(true);
-      } catch {
-        // Browser blocked playback
+      } catch (e) {
+        console.error("[AudioPlayer] play() rejected", e);
       }
     }
   };
