@@ -13,6 +13,7 @@ interface Props {
 export default function PlaybackSpeed({ speed, onChange }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -25,10 +26,21 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
+  const handleOpen = () => {
+    if (!isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setIsOpen(!isOpen);
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleOpen}
         className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all font-semibold"
         title="Playback speed"
       >
@@ -38,13 +50,15 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -5, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -5, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full mt-3 right-0 z-[60] bg-[#1a1a1a] border border-white/[0.1] rounded-xl p-2.5 shadow-2xl"
+            className="fixed z-[100] bg-[#1a1a1a] border border-white/[0.1] rounded-xl p-3 shadow-2xl"
+            style={{ top: pos.top, right: pos.right }}
           >
-            <div className="grid grid-cols-3 gap-1.5">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-medium">Playback Speed</p>
+            <div className="grid grid-cols-4 gap-1.5 w-[200px]">
               {SPEEDS.map((s) => (
                 <button
                   key={s}
@@ -52,10 +66,10 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
                     onChange(s);
                     setIsOpen(false);
                   }}
-                  className={`px-3 py-2 text-xs rounded-lg font-medium transition-all ${
+                  className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-all whitespace-nowrap ${
                     speed === s
                       ? "bg-purple-600/30 text-purple-300 border border-purple-500/30"
-                      : "bg-white/[0.03] hover:bg-white/[0.08] text-gray-300 border border-transparent"
+                      : "bg-white/[0.04] hover:bg-white/[0.1] text-gray-300 border border-white/[0.06]"
                   }`}
                 >
                   {s}x
