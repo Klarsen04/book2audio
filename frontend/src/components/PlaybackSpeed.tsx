@@ -38,11 +38,11 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 5, scale: 0.95 }}
+            initial={{ opacity: 0, y: -5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 5, scale: 0.95 }}
+            exit={{ opacity: 0, y: -5, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full mb-3 right-0 glass-strong rounded-xl p-2.5 shadow-2xl"
+            className="absolute top-full mt-3 right-0 z-[60] bg-[#1a1a1a] border border-white/[0.1] rounded-xl p-2.5 shadow-2xl"
           >
             <div className="grid grid-cols-3 gap-1.5">
               {SPEEDS.map((s) => (
