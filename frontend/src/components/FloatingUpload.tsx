@@ -3,17 +3,22 @@
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNowPlayingActive } from "./NowPlaying";
 
 export default function FloatingUpload() {
   const [isHovered, setIsHovered] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const nowPlayingActive = useNowPlayingActive();
 
   if (pathname === "/convert" || pathname.startsWith("/player/")) return null;
 
   return (
     <motion.div
-      className="fixed bottom-6 right-6 z-40"
+      // Lift above the now-playing bar so it doesn't get covered.
+      className={`fixed right-6 z-40 transition-[bottom] duration-300 ${
+        nowPlayingActive ? "bottom-24" : "bottom-6"
+      }`}
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}
       transition={{ delay: 1, type: "spring", stiffness: 200 }}

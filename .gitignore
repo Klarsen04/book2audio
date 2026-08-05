@@ -11,3 +11,6 @@ dist/
 venv/
 .vercel
 .env*
+.DS_Store
+backend/data/
+*.tsbuildinfo

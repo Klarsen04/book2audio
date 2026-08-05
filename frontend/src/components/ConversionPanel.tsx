@@ -20,6 +20,14 @@ interface Voice {
   engine: string;
 }
 
+// Approximate fraction of the text kept by each summary level.
+// Kept in sync with backend/app/summarizer.py.
+const SUMMARY_RATIOS: Record<string, number> = {
+  full: 1,
+  long_summary: 0.35,
+  short_summary: 0.12,
+};
+
 export default function ConversionPanel({
   jobId,
   title,
@@ -36,7 +44,6 @@ export default function ConversionPanel({
     return "Joanna";
   });
   const [audioType, setAudioType] = useState("full");
-  const [additionalContext, setAdditionalContext] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState(0);
@@ -85,7 +92,7 @@ export default function ConversionPanel({
     setProgress(0);
 
     try {
-      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&additional_context=${additionalContext}`);
+      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}`);
     } catch (err: any) {
       setIsConverting(false);
       setError(err.response?.data?.detail || "Failed to start conversion");
@@ -121,6 +128,10 @@ export default function ConversionPanel({
   }, []);
 
   const estimatedMinutes = Math.ceil(wordCount / 150);
+
+  const summaryRatio = SUMMARY_RATIOS[audioType] ?? 1;
+  const estimatedSummaryWords = Math.round(wordCount * summaryRatio);
+  const estimatedSummaryMinutes = Math.max(1, Math.ceil(estimatedSummaryWords / 150));
 
   return (
     <div className="space-y-6">
@@ -176,7 +187,7 @@ export default function ConversionPanel({
             {
               id: "full",
               label: "Full Text",
-              description: "Reads the entire document. Tables, figures and math summarized, junk text removed.",
+              description: "Reads the entire document, start to finish.",
               icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -186,7 +197,7 @@ export default function ConversionPanel({
             {
               id: "long_summary",
               label: "Long Summary",
-              description: "Detailed summary covering key points. Reduces listening time by ~70%.",
+              description: "Keeps the key sentences of each chapter. Around a third of the length.",
               icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M12 17.25h8.25" />
@@ -196,7 +207,7 @@ export default function ConversionPanel({
             {
               id: "short_summary",
               label: "Short Summary",
-              description: "Concise overview for quick understanding. ~5 min for most documents.",
+              description: "A concise overview — only the highest-scoring sentences.",
               icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h8.25" />
@@ -223,28 +234,18 @@ export default function ConversionPanel({
           ))}
         </div>
 
-        {/* Additional Context toggle */}
-        <div className="mt-4 pt-4 border-t border-white/[0.06]">
-          <button
-            onClick={() => setAdditionalContext(!additionalContext)}
-            disabled={isConverting}
-            className="flex items-center justify-between w-full group disabled:opacity-50"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-5 rounded-full transition-colors relative ${
-                additionalContext ? "bg-purple-600" : "bg-white/[0.1]"
-              }`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                  additionalContext ? "translate-x-4" : "translate-x-0.5"
-                }`} />
-              </div>
-              <div className="text-left">
-                <span className="text-sm text-gray-200 block">Additional Context</span>
-                <span className="text-xs text-gray-500">Adds background and definitions for research papers</span>
-              </div>
-            </div>
-          </button>
-        </div>
+        {/* Reduction preview for summary modes */}
+        {audioType !== "full" && (
+          <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs">
+            <span className="text-gray-500">Estimated after summarizing</span>
+            <span className="text-purple-300 font-medium">
+              ~{estimatedSummaryWords.toLocaleString()} words · ~{estimatedSummaryMinutes} min audio
+              <span className="text-gray-500 font-normal">
+                {" "}(down from {wordCount.toLocaleString()})
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Voice selection with preview */}

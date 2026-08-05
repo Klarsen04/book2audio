@@ -280,7 +280,7 @@ async def upload_text(body: UploadTextRequest, user: dict = Depends(get_current_
 
 
 @app.post("/api/convert/{doc_id}")
-async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", additional_context: bool = False, user: dict = Depends(get_current_user)):
+async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", user: dict = Depends(get_current_user)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT id, status FROM documents WHERE id = ? AND user_id = ?",
@@ -315,6 +315,17 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str =
         )
         conversion_progress[doc_id]["content"] = summarized_content
         conversion_progress[doc_id]["total_chapters"] = len(summarized_chapters)
+
+        # Persist the reduced word counts so the library/player reflect the summary.
+        summarized_meta = [
+            {"title": ch.title, "word_count": len(ch.text.split())}
+            for ch in summarized_chapters
+        ]
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
+                (json.dumps(summarized_meta), summarized_content.word_count, doc_id),
+            )
 
     conversion_progress[doc_id]["status"] = "converting"
     conversion_progress[doc_id]["progress"] = 0

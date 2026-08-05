@@ -12,15 +12,38 @@ interface NowPlayingState {
   isPlaying: boolean;
 }
 
-let updateNowPlaying: ((state: NowPlayingState | null) => void) | null = null;
+// Subscribers are notified whenever the now-playing state changes so other
+// fixed-position UI (e.g. the floating upload button) can shift out of the way.
+const subscribers = new Set<(state: NowPlayingState | null) => void>();
+
+function notify(state: NowPlayingState | null) {
+  subscribers.forEach((fn) => fn(state));
+}
 
 export function setNowPlaying(state: NowPlayingState | null) {
-  updateNowPlaying?.(state);
   if (state) {
     sessionStorage.setItem("now_playing", JSON.stringify(state));
   } else {
     sessionStorage.removeItem("now_playing");
   }
+  notify(state);
+}
+
+// Reactively tracks whether a now-playing bar is currently active.
+export function useNowPlayingActive() {
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("now_playing");
+    setActive(!!saved);
+    const fn = (state: NowPlayingState | null) => setActive(!!state);
+    subscribers.add(fn);
+    return () => {
+      subscribers.delete(fn);
+    };
+  }, []);
+
+  return active;
 }
 
 export default function NowPlayingBar() {
@@ -28,13 +51,13 @@ export default function NowPlayingBar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    updateNowPlaying = setState;
     const saved = sessionStorage.getItem("now_playing");
     if (saved) {
       setState(JSON.parse(saved));
     }
+    subscribers.add(setState);
     return () => {
-      updateNowPlaying = null;
+      subscribers.delete(setState);
     };
   }, []);
 

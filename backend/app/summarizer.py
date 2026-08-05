@@ -1,10 +1,19 @@
 """
 Simple extractive text summarizer.
 No external API needed — uses sentence scoring based on word frequency.
+
+Two levels are supported and both ALWAYS reduce the text (down to a floor of a
+few sentences) so the resulting audio is meaningfully shorter than the original.
+The target ratios below are also mirrored in the frontend so the UI can preview
+the expected reduction — keep them in sync with ConversionPanel.tsx.
 """
 
 import re
-from dataclasses import dataclass
+
+# Fraction of sentences kept for each summary level. Kept in sync with the
+# frontend so the UI can preview the expected reduction.
+LONG_SUMMARY_RATIO = 0.35
+SHORT_SUMMARY_RATIO = 0.12
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -34,28 +43,33 @@ def _score_sentences(sentences: list[str]) -> list[tuple[float, int, str]]:
     return scored
 
 
-def summarize_long(text: str) -> str:
-    """Long summary: ~30% of sentences, preserving order."""
+def _summarize(text: str, ratio: float, floor: int) -> str:
+    """Keep the top `ratio` of sentences (at least `floor`), preserving order.
+
+    Always returns strictly fewer sentences than the input so long as there is
+    more than one sentence to work with — so even short documents get trimmed.
+    """
     sentences = _split_sentences(text)
-    if len(sentences) <= 5:
+    # Only a single sentence (or none) — nothing meaningful to trim.
+    if len(sentences) <= 1:
         return text
 
     scored = _score_sentences(sentences)
-    target = max(3, int(len(sentences) * 0.3))
+    target = max(floor, int(round(len(sentences) * ratio)))
+    # Guarantee the summary is shorter than the original.
+    target = min(target, len(sentences) - 1)
+
     top = sorted(scored, key=lambda x: x[0], reverse=True)[:target]
-    # Restore original order
+    # Restore original reading order.
     selected = sorted(top, key=lambda x: x[1])
     return " ".join(s[2] for s in selected)
+
+
+def summarize_long(text: str) -> str:
+    """Long summary: ~35% of sentences, preserving order."""
+    return _summarize(text, LONG_SUMMARY_RATIO, floor=2)
 
 
 def summarize_short(text: str) -> str:
-    """Short summary: first + last sentence of each paragraph block, ~10% of content."""
-    sentences = _split_sentences(text)
-    if len(sentences) <= 3:
-        return text
-
-    scored = _score_sentences(sentences)
-    target = max(2, int(len(sentences) * 0.1))
-    top = sorted(scored, key=lambda x: x[0], reverse=True)[:target]
-    selected = sorted(top, key=lambda x: x[1])
-    return " ".join(s[2] for s in selected)
+    """Short summary: ~12% of sentences — a concise overview."""
+    return _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
