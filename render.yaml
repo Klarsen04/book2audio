@@ -21,10 +21,4 @@ services:
       - key: GOOGLE_REDIRECT_URI
         sync: false
       - key: DATABASE_PATH
-        value: /data/book2audio.db
-      - key: AUDIO_OUTPUT_DIR
-        value: /data/audio
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 10
+        value: ./data/book2audio.db
