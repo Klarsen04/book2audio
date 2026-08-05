@@ -32,7 +32,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OUTPUT_DIR = Path("/app/output") if os.environ.get("DOCKER") else Path("./output")
+# Where generated audio is stored. Must live on persistent storage in
+# production (e.g. Render's mounted disk) or files are lost on every deploy.
+# Priority: explicit AUDIO_OUTPUT_DIR env var > Docker volume > local ./output.
+if os.environ.get("AUDIO_OUTPUT_DIR"):
+    OUTPUT_DIR = Path(os.environ["AUDIO_OUTPUT_DIR"])
+elif os.environ.get("DOCKER"):
+    OUTPUT_DIR = Path("/app/output")
+else:
+    OUTPUT_DIR = Path("./output")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # In-memory progress tracking (not persisted — only for active conversions)

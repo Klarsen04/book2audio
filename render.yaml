@@ -22,6 +22,8 @@ services:
         sync: false
       - key: DATABASE_PATH
         value: /data/book2audio.db
+      - key: AUDIO_OUTPUT_DIR
+        value: /data/audio
     disk:
       name: data
       mountPath: /data
