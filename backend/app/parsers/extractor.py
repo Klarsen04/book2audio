@@ -1,6 +1,7 @@
 import io
 import re
 import zipfile
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree
@@ -24,32 +25,118 @@ class BookContent:
     word_count: int
 
 
+@dataclass
+class _Line:
+    """A single visual line of text on a page, with its dominant font size."""
+    text: str
+    font_size: float
+    top: float
+
+
+# A line is treated as a page number if it's just a number, optionally wrapped
+# in common decorations (e.g. "12", "- 12 -", "Page 12", "12 | Book Title").
+_PAGE_NUMBER_RE = re.compile(
+    r"^\s*(?:page\s+)?[-–—\|]?\s*(?:\d{1,4}|[ivxlcdm]{1,7})\s*[-–—\|]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _page_lines(page) -> list[_Line]:
+    """Group a page's words into visual lines with a representative font size."""
+    words = page.extract_words(extra_attrs=["size"])
+    grouped: dict[float, list] = {}
+    for w in words:
+        top = round(w["top"], 1)
+        grouped.setdefault(top, []).append(w)
+
+    lines: list[_Line] = []
+    for top in sorted(grouped):
+        line_words = sorted(grouped[top], key=lambda w: w["x0"])
+        text = " ".join(w["text"] for w in line_words).strip()
+        if not text:
+            continue
+        font_size = max(w.get("size", 12) for w in line_words)
+        lines.append(_Line(text=text, font_size=font_size, top=top))
+    return lines
+
+
+def _find_running_lines(pages_lines: list[list[_Line]]) -> set[str]:
+    """Detect repeated headers/footers.
+
+    A short line near the top or bottom of the page that recurs on many pages is
+    almost always a running header/footer (book title, chapter name, section),
+    not real content — so it should not be narrated.
+    """
+    if len(pages_lines) < 4:
+        return set()
+
+    top_counts: Counter = Counter()
+    bottom_counts: Counter = Counter()
+    for lines in pages_lines:
+        if not lines:
+            continue
+        # First two and last two lines are the header/footer candidates.
+        for ln in lines[:2]:
+            if len(ln.text) < 100:
+                top_counts[ln.text] += 1
+        for ln in lines[-2:]:
+            if len(ln.text) < 100:
+                bottom_counts[ln.text] += 1
+
+    # Appears on at least ~40% of pages → it's boilerplate.
+    threshold = max(3, int(len(pages_lines) * 0.4))
+    running = set()
+    for text, count in (top_counts + bottom_counts).items():
+        if count >= threshold:
+            running.add(text)
+    return running
+
+
+def _pdf_outline_titles(pdf) -> list[str]:
+    """Return chapter titles from the PDF's table of contents / outline, if any."""
+    try:
+        outline = pdf.doc.get_outlines()
+    except Exception:
+        return []
+
+    titles: list[str] = []
+    for _level, title, *_ in outline:
+        if title:
+            cleaned = " ".join(str(title).split())
+            if cleaned:
+                titles.append(cleaned)
+    return titles
+
+
 def extract_from_pdf(file_bytes: bytes) -> BookContent:
     pdf = pdfplumber.open(io.BytesIO(file_bytes))
     title = (pdf.metadata or {}).get("Title", "") or "Untitled"
 
+    pages_lines = [_page_lines(page) for page in pdf.pages]
+    running = _find_running_lines(pages_lines)
+    outline_titles = {t.lower() for t in _pdf_outline_titles(pdf)}
+
     chapters: list[Chapter] = []
     current_text = ""
     current_title = "Chapter 1"
-    chapter_num = 1
 
-    for page in pdf.pages:
-        words = page.extract_words(extra_attrs=["size"])
-        lines: dict[float, list] = {}
-        for w in words:
-            top = round(w["top"], 1)
-            lines.setdefault(top, []).append(w)
+    for lines in pages_lines:
+        for ln in lines:
+            text = ln.text
 
-        for top in sorted(lines):
-            line_words = sorted(lines[top], key=lambda w: w["x0"])
-            text = " ".join(w["text"] for w in line_words)
-            font_size = max(w.get("size", 12) for w in line_words)
+            # Drop running headers/footers and standalone page numbers.
+            if text in running or _PAGE_NUMBER_RE.match(text):
+                continue
 
-            if font_size > 16 and len(text.strip()) < 100 and text.strip():
+            # Chapter break: either a large heading, or a line that matches a
+            # title from the PDF's own table of contents.
+            is_heading = ln.font_size > 16 and len(text) < 100
+            is_toc_title = text.lower() in outline_titles and len(text) < 100
+
+            if (is_heading or is_toc_title) and text:
                 if current_text.strip():
                     chapters.append(Chapter(title=current_title, text=current_text.strip()))
-                chapter_num += 1
-                current_title = text.strip()
+                current_title = text
                 current_text = ""
             else:
                 current_text += text + " "
