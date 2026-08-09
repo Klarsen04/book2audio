@@ -73,3 +73,21 @@ def summarize_long(text: str) -> str:
 def summarize_short(text: str) -> str:
     """Short summary: ~12% of sentences — a concise overview."""
     return _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
+
+
+# Spoken-intro ("preread") summary: a brief overview read at the very start of the
+# audiobook before the main content. Capped so the intro stays ~1 minute.
+INTRO_MAX_WORDS = 160
+
+
+def summarize_intro(text: str) -> str:
+    """
+    A short spoken overview of what the audio is about, phrased as an intro.
+    Unlike summarize_long/short this does NOT replace the audio — it's prepended
+    to it. Returns the summary body (the caller adds any lead-in phrasing).
+    """
+    summary = _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
+    words = summary.split()
+    if len(words) > INTRO_MAX_WORDS:
+        summary = " ".join(words[:INTRO_MAX_WORDS]).rstrip(",;:") + "…"
+    return summary

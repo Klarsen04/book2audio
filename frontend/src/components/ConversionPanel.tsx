@@ -44,6 +44,7 @@ export default function ConversionPanel({
     return "Joanna";
   });
   const [audioType, setAudioType] = useState("full");
+  const [introSummary, setIntroSummary] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState(0);
@@ -92,7 +93,9 @@ export default function ConversionPanel({
     setProgress(0);
 
     try {
-      await api.post(`/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}`);
+      await api.post(
+        `/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&intro=${introSummary}`
+      );
     } catch (err: any) {
       setIsConverting(false);
       setError(err.response?.data?.detail || "Failed to start conversion");
@@ -246,6 +249,44 @@ export default function ConversionPanel({
             </span>
           </div>
         )}
+
+        {/* Spoken-summary intro toggle — independent of the audio type above.
+            Adds a ~1-min "Summary" chapter at the start; the main audio is
+            unchanged. */}
+        <label
+          className={`mt-4 flex cursor-pointer items-start justify-between gap-4 rounded-sm border p-4 transition-all ${
+            introSummary
+              ? "border-gold/30 bg-gold/10"
+              : "border-hairline bg-surface hover:border-hairline-strong"
+          } ${isConverting ? "opacity-50 pointer-events-none" : ""}`}
+        >
+          <div>
+            <span className="block text-sm font-serif text-paper">
+              Start with a spoken summary
+            </span>
+            <span className="mt-1 block text-xs leading-relaxed text-paper/40 font-serif">
+              Adds a short overview of what the audio is about at the very
+              beginning — like a preview — then plays your selection above in
+              full. Shows as a &ldquo;Summary&rdquo; chapter you can skip.
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={introSummary}
+            onClick={() => setIntroSummary((v) => !v)}
+            disabled={isConverting}
+            className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
+              introSummary ? "bg-gold" : "bg-paper/15"
+            }`}
+          >
+            <span
+              className={`absolute top-1 h-4 w-4 rounded-full transition-transform ${
+                introSummary ? "left-6 bg-ink" : "left-1 bg-paper"
+              }`}
+            />
+          </button>
+        </label>
       </div>
 
       {/* Voice selection with preview */}

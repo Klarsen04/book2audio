@@ -312,7 +312,13 @@ async def upload_text(body: UploadTextRequest, user: dict = Depends(get_session)
 
 
 @app.post("/api/convert/{doc_id}")
-async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", user: dict = Depends(get_session)):
+async def start_conversion(
+    doc_id: str,
+    voice: str = "Joanna",
+    audio_type: str = "full",
+    intro: bool = False,
+    user: dict = Depends(get_session),
+):
     with get_db() as conn:
         row = conn.execute(
             "SELECT id, status FROM documents WHERE id = ? AND user_id = ?",
@@ -328,10 +334,11 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str =
     if conversion_progress[doc_id]["status"] == "converting":
         raise HTTPException(status_code=409, detail="Conversion already in progress")
 
-    # Apply summarization if needed
+    from app.parsers.extractor import Chapter, BookContent
+
+    # Apply summarization if needed (this REPLACES the read content).
     if audio_type in ("long_summary", "short_summary"):
         from app.summarizer import summarize_long, summarize_short
-        from app.parsers.extractor import Chapter
         content = conversion_progress[doc_id]["content"]
         summarize_fn = summarize_long if audio_type == "long_summary" else summarize_short
         summarized_chapters = []
@@ -339,7 +346,6 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str =
             summary_text = summarize_fn(ch.text)
             summarized_chapters.append(Chapter(title=ch.title, text=summary_text))
         # Replace content with summarized version
-        from app.parsers.extractor import BookContent
         summarized_content = BookContent(
             title=content.title,
             chapters=summarized_chapters,
@@ -348,9 +354,10 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str =
         conversion_progress[doc_id]["content"] = summarized_content
         conversion_progress[doc_id]["total_chapters"] = len(summarized_chapters)
 
-        # Persist the reduced word counts so the library/player reflect the summary.
+        # Persist the reduced word counts AND text so the reader view reflects
+        # the summary (must keep `text`, or the reader shows "text not available").
         summarized_meta = [
-            {"title": ch.title, "word_count": len(ch.text.split())}
+            {"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text}
             for ch in summarized_chapters
         ]
         with get_db() as conn:
@@ -358,6 +365,49 @@ async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str =
                 "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
                 (json.dumps(summarized_meta), summarized_content.word_count, doc_id),
             )
+
+    # Optional spoken "preread": prepend a short summary chapter read at the very
+    # start, WITHOUT shortening the main content. Built from whatever will be read
+    # (full text, or the summary above), so it previews the actual audio.
+    if intro:
+        from app.summarizer import summarize_intro
+        content = conversion_progress[doc_id]["content"]
+        whole_text = "\n\n".join(ch.text for ch in content.chapters)
+        overview = summarize_intro(whole_text)
+        if overview.strip():
+            intro_text = (
+                f"Summary. Here's a quick overview of {content.title}. "
+                f"{overview} Now, the full text begins."
+            )
+            intro_chapter = Chapter(title="Summary", text=intro_text)
+            new_content = BookContent(
+                title=content.title,
+                chapters=[intro_chapter, *content.chapters],
+                word_count=content.word_count + len(intro_text.split()),
+            )
+            conversion_progress[doc_id]["content"] = new_content
+            conversion_progress[doc_id]["total_chapters"] = len(new_content.chapters)
+
+            # Prepend the intro to the stored chapter list so it shows as a
+            # navigable "Summary" chapter at 0:00 in the player.
+            with get_db() as conn:
+                cj = conn.execute(
+                    "SELECT chapters_json, total_word_count FROM documents WHERE id = ?",
+                    (doc_id,),
+                ).fetchone()
+                chapters_meta = json.loads(cj[0])
+                chapters_meta.insert(
+                    0,
+                    {
+                        "title": "Summary",
+                        "word_count": len(intro_text.split()),
+                        "text": intro_text,
+                    },
+                )
+                conn.execute(
+                    "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
+                    (json.dumps(chapters_meta), (cj[1] or 0) + len(intro_text.split()), doc_id),
+                )
 
     conversion_progress[doc_id]["status"] = "converting"
     conversion_progress[doc_id]["progress"] = 0
