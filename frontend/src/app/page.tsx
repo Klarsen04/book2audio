@@ -7,6 +7,8 @@ import TransformStage from "@/components/home/TransformStage";
 import ArtifactScene from "@/components/home/ArtifactScene";
 import WaveCanvas from "@/components/motion/WaveCanvas";
 import RestoreDialog from "@/components/RestoreDialog";
+import GetTheApp from "@/components/home/GetTheApp";
+import InstallHint from "@/components/InstallHint";
 
 /* ------------------------------------------------------------------ */
 /* Editorial masthead — gains a backdrop once past the hero           */
@@ -368,6 +370,8 @@ export default function Home() {
       <div className="relative min-h-screen overflow-x-hidden bg-[#16130f]">
         <Masthead onRestore={() => setRestoreOpen(true)} />
         <RestoreDialog open={restoreOpen} onClose={() => setRestoreOpen(false)} />
+        <InstallHint />
+
 
         {/* SCENES 1–5: the cinematic transformation (pinned, scrubbed) */}
         <TransformStage />
@@ -543,6 +547,9 @@ export default function Home() {
             ))}
           </div>
         </SectionShell>
+
+        {/* Get the app (PWA install + QR) */}
+        <GetTheApp />
 
         {/* Final CTA */}
         <section className="border-t border-hairline py-28">

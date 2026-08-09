@@ -31,6 +31,26 @@ export const metadata: Metadata = {
   title: "Book2Audio — Every page has a voice",
   description:
     "Turn documents into audiobooks. Upload a PDF, EPUB, DOCX, or TXT — we detect chapters, strip the junk, and read it aloud in a natural voice.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Book2Audio",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport = {
+  themeColor: "#16130f",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -39,12 +59,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${playfair.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#16130f" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-      </head>
       <body className="min-h-screen bg-[#16130f] antialiased">
         <SessionProvider>{children}</SessionProvider>
       </body>
