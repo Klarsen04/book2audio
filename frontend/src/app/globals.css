@@ -2,116 +2,163 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Editorial publishing-studio system.
+  Dark warm-ink ground with paper accents. No purple, no glassmorphism, no glow.
+  Legacy utility names (.glass, .gradient-text) are retained but re-skinned so the
+  existing product pages keep working while adopting the new visual language.
+*/
+
 :root {
-  --foreground: #f1f5f9;
-  --background: #050505;
+  --foreground: #f4f1ea; /* paper */
+  --background: #16130f; /* deep warm ink */
+  --paper: #f4f1ea;
+  --paper-bright: #fbf9f4;
+  --ink: #1a1815;
+  --burgundy: #7c2d3a;
+  --gold: #b45309;
+}
+
+html {
+  /* Lenis drives smooth scroll; disable native smooth so they don't fight. */
+  scroll-behavior: auto;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-source-serif), "Source Serif 4", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Lenis */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
 }
 
 @layer utilities {
+  /* Re-skinned "card" surface: paper-on-ink, hairline border, no blur. */
   .glass {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--surface, #211e1a);
+    border: 1px solid rgba(244, 241, 234, 0.1);
   }
-
   .glass-strong {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #2a2723;
+    border: 1px solid rgba(244, 241, 234, 0.18);
   }
 
+  /* Editorial "printed on paper" panel */
+  .paper-panel {
+    background: linear-gradient(180deg, #fbf9f4 0%, #f4f1ea 100%);
+    color: var(--ink);
+    border: 1px solid #dcd5c6;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+      0 30px 60px -30px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Was a purple->blue gradient. Now: ink that shifts to burgundy/gold — used sparingly. */
   .gradient-text {
-    background: linear-gradient(135deg, #a78bfa 0%, #60a5fa 50%, #34d399 100%);
+    background: linear-gradient(100deg, #f4f1ea 0%, #e6c79a 55%, #d08a3e 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
-
   .gradient-text-warm {
-    background: linear-gradient(135deg, #f97316 0%, #ec4899 50%, #8b5cf6 100%);
+    background: linear-gradient(100deg, #9b4552 0%, #b45309 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
-  .glow-purple {
-    box-shadow: 0 0 40px rgba(139, 92, 246, 0.15), 0 0 80px rgba(139, 92, 246, 0.05);
-  }
-
+  .glow-purple,
   .glow-blue {
-    box-shadow: 0 0 40px rgba(96, 165, 250, 0.15), 0 0 80px rgba(96, 165, 250, 0.05);
+    box-shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Small caps mono label used for audio metadata / kickers */
+  .label-mono {
+    font-family: var(--font-jetbrains), "JetBrains Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-size: 0.7rem;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* subtle paper grain, applied as an overlay where wanted */
+  .paper-grain {
+    position: relative;
+  }
+  .paper-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+    background-image: radial-gradient(
+      rgba(26, 24, 21, 0.035) 1px,
+      transparent 1px
+    );
+    background-size: 3px 3px;
   }
 }
 
+/* Range inputs — gold ink instead of purple gradient */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(244, 241, 234, 0.14);
   outline: none;
   transition: background 0.2s;
 }
-
 input[type="range"]:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(244, 241, 234, 0.22);
 }
-
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #8b5cf6, #60a5fa);
+  background: var(--gold);
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 4px rgba(180, 83, 9, 0.18);
   transition: transform 0.15s ease;
 }
-
 input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-}
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes ripple {
-  0% { transform: scale(1); opacity: 0.4; }
-  100% { transform: scale(2.5); opacity: 0; }
-}
-
-@keyframes bounce-subtle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+  transform: scale(1.15);
 }
 
 .scroll-indicator {
   animation: bounce-subtle 2s ease-in-out infinite;
 }
-
-.pulse-ring::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.4);
-  animation: ripple 1.5s ease-out infinite;
+@keyframes bounce-subtle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
-.text-balance {
-  text-wrap: balance;
-}
-
-/* Focus mode */
+/* Focus mode (product) */
 .focus-mode nav,
 .focus-mode .floating-upload {
   opacity: 0.2;
@@ -122,7 +169,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   opacity: 1;
 }
 
-/* Dyslexia-friendly mode */
+/* Dyslexia-friendly reader mode */
 .dyslexia-mode .reader-text {
   font-family: "OpenDyslexic", "Comic Sans MS", sans-serif !important;
   letter-spacing: 0.05em;
@@ -130,42 +177,42 @@ input[type="range"]::-webkit-slider-thumb:hover {
   line-height: 2.2 !important;
   max-width: 60ch;
 }
-
 .dyslexia-mode .reader-content {
   background: rgba(255, 248, 220, 0.03);
 }
 
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient-shift 3s ease infinite;
-}
-
 .hover-lift {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease;
 }
-
 .hover-lift:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgba(180, 83, 9, 0.28);
+  color: #fbf9f4;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: rgba(244, 241, 234, 0.14);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 241, 234, 0.24);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+/* Respect reduced motion globally for CSS-driven idle animations */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-indicator,
+  .animate-waveform-idle {
+    animation: none !important;
+  }
 }

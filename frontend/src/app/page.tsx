@@ -3,23 +3,53 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import ParticleField from "@/components/ParticleField";
-import TypeWriter from "@/components/TypeWriter";
-import MagneticButton from "@/components/MagneticButton";
-import MiniSpectrum from "@/components/MiniSpectrum";
-import TiltCard from "@/components/TiltCard";
+import SmoothScroll from "@/components/motion/SmoothScroll";
+import TransformStage from "@/components/home/TransformStage";
+import ArtifactScene from "@/components/home/ArtifactScene";
+import WaveCanvas from "@/components/motion/WaveCanvas";
 
-function AudioSample({
-  src,
-  label,
-  sublabel,
-}: {
-  src: string;
-  label: string;
-  sublabel: string;
-}) {
+/* ------------------------------------------------------------------ */
+/* Editorial masthead — gains a backdrop once past the hero           */
+/* ------------------------------------------------------------------ */
+function Masthead() {
+  const [solid, setSolid] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setSolid(window.scrollY > window.innerHeight * 0.6);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return (
+    <nav
+      className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+        solid ? "border-b border-hairline bg-[#16130f]/85 backdrop-blur-md" : "border-b border-transparent"
+      }`}
+    >
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <span className="font-display text-xl font-bold text-paper">
+          Book<span className="text-gold">2</span>Audio
+        </span>
+        <div className="flex items-center gap-6">
+          <Link href="/login" className="font-serif text-sm text-paper/60 transition-colors hover:text-paper">
+            Sign in
+          </Link>
+          <Link
+            href="/register"
+            className="label-mono rounded-full border border-gold/40 px-5 py-2 text-gold transition-colors hover:bg-gold/10"
+          >
+            Get started
+          </Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Reusable audio sample player (real /public/samples/*.mp3)          */
+/* ------------------------------------------------------------------ */
+function AudioSample({ src, label, sublabel }: { src: string; label: string; sublabel: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -58,40 +88,44 @@ function AudioSample({
   }, []);
 
   return (
-    <div className={`glass rounded-xl p-4 flex items-center gap-4 hover:bg-white/[0.05] transition-all group ${playing ? "border-purple-500/30 bg-purple-500/5" : ""}`}>
+    <div
+      className={`group flex items-center gap-4 rounded-sm border border-hairline bg-surface px-4 py-4 transition-colors hover:border-gold/30 ${
+        playing ? "border-gold/40" : ""
+      }`}
+    >
       <audio ref={audioRef} src={src} preload="metadata" />
       <button
         onClick={toggle}
-        className={`relative w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shrink-0 hover:scale-110 transition-transform active:scale-95 ${playing ? "pulse-ring" : ""}`}
+        aria-label={playing ? `Pause ${label}` : `Play ${label}`}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold text-ink transition-transform hover:scale-110 active:scale-95"
       >
         {playing ? (
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
           </svg>
         ) : (
-          <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="ml-0.5 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
           </svg>
         )}
       </button>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{label}</p>
-        <p className="text-xs text-gray-500">{sublabel}</p>
-        {playing ? (
-          <MiniSpectrum isPlaying={playing} barCount={16} />
-        ) : (
-          <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-200"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-display text-base text-paper">{label}</p>
+        <p className="label-mono text-paper/40">{sublabel}</p>
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-paper/10">
+          <div
+            className="h-full rounded-full bg-gold transition-[width] duration-200"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Interactive voice demo (real /api/voices/preview)                  */
+/* ------------------------------------------------------------------ */
 const voiceDemoTabs = [
   { id: "research", label: "Research paper" },
   { id: "book", label: "Book" },
@@ -111,10 +145,10 @@ const voiceDemoTexts: Record<string, string> = {
 };
 
 const voiceOptions = [
-  { id: "Joanna", label: "Joanna: Female, clear" },
-  { id: "Matthew", label: "Matthew: Male, warm" },
-  { id: "Ruth", label: "Ruth: Female, expressive" },
-  { id: "Stephen", label: "Stephen: Male, deep" },
+  { id: "Joanna", label: "Joanna — female, clear" },
+  { id: "Matthew", label: "Matthew — male, warm" },
+  { id: "Ruth", label: "Ruth — female, expressive" },
+  { id: "Stephen", label: "Stephen — male, deep" },
 ];
 
 const speedOptions = ["0.75x", "1x", "1.25x", "1.5x", "2x"];
@@ -130,859 +164,361 @@ function VoiceDemoSection() {
     try {
       await fetch(`/api/voices/preview/${selectedVoice}`, { method: "POST" });
     } catch {
-      // demo only
+      /* demo only */
     }
     setTimeout(() => setIsPlaying(false), 3000);
   };
 
   return (
-    <section className="py-20 border-t border-white/[0.04]">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="text-center mb-12"
-      >
-        <h2 className="text-3xl font-bold text-white mb-3">
-          Try our text to speech voices
-        </h2>
-        <p className="text-gray-400 max-w-lg mx-auto">
-          Pick a content type, choose a voice, and hear how your documents will sound.
-        </p>
-      </motion.div>
-
-      {/* Tab buttons */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-        className="flex justify-center gap-2 mb-8"
-      >
+    <SectionShell kicker="Try a voice" title="Hear how your document will read">
+      <div className="mb-8 flex flex-wrap justify-center gap-2">
         {voiceDemoTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative px-5 py-2 rounded-full text-sm font-medium transition-colors ${
+            className={`label-mono rounded-full border px-4 py-2 transition-colors ${
               activeTab === tab.id
-                ? "text-white"
-                : "text-gray-400 hover:text-gray-200"
+                ? "border-gold/50 bg-gold/10 text-gold"
+                : "border-hairline text-paper/50 hover:text-paper"
             }`}
           >
-            {activeTab === tab.id && (
-              <motion.div
-                layoutId="voiceDemoTabBg"
-                className="absolute inset-0 rounded-full bg-white/[0.08] border border-white/[0.1]"
-                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-              />
-            )}
-            <span className="relative z-10">{tab.label}</span>
+            {tab.label}
           </button>
         ))}
-      </motion.div>
+      </div>
 
-      {/* Main card */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="max-w-2xl mx-auto glass rounded-2xl p-8"
-      >
-        {/* Sample text area */}
-        <div className="min-h-[80px] mb-6">
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="text-gray-300 text-base leading-relaxed italic"
-            >
-              &ldquo;{voiceDemoTexts[activeTab]}&rdquo;
-            </motion.p>
-          </AnimatePresence>
-        </div>
+      <div className="mx-auto max-w-2xl rounded-sm border border-hairline bg-surface p-8">
+        <p
+          key={activeTab}
+          className="animate-ink-in mb-6 min-h-[80px] font-serif text-xl italic leading-relaxed text-paper/85"
+        >
+          &ldquo;{voiceDemoTexts[activeTab]}&rdquo;
+        </p>
 
-        {/* Controls row */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          {/* Voice dropdown */}
+        <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="text-xs text-gray-500 mb-1 block">Voice</label>
+            <label className="label-mono mb-1 block text-paper/40">Voice</label>
             <select
               value={selectedVoice}
               onChange={(e) => setSelectedVoice(e.target.value)}
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500/50"
+              className="w-full cursor-pointer appearance-none rounded-sm border border-hairline bg-ink px-3 py-2.5 font-serif text-paper focus:border-gold/50 focus:outline-none"
             >
               {voiceOptions.map((v) => (
-                <option key={v.id} value={v.id} className="bg-gray-900">
+                <option key={v.id} value={v.id} className="bg-ink">
                   {v.label}
                 </option>
               ))}
             </select>
           </div>
-
-          {/* Speed dropdown */}
-          <div className="w-24">
-            <label className="text-xs text-gray-500 mb-1 block">Speed</label>
+          <div className="w-full sm:w-28">
+            <label className="label-mono mb-1 block text-paper/40">Speed</label>
             <select
               value={speed}
               onChange={(e) => setSpeed(e.target.value)}
-              className="w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500/50"
+              className="w-full cursor-pointer appearance-none rounded-sm border border-hairline bg-ink px-3 py-2.5 font-serif text-paper focus:border-gold/50 focus:outline-none"
             >
               {speedOptions.map((s) => (
-                <option key={s} value={s} className="bg-gray-900">
+                <option key={s} value={s} className="bg-ink">
                   {s}
                 </option>
               ))}
             </select>
           </div>
-
-          {/* Play button */}
-          <div className="flex items-end">
-            <button
-              onClick={handlePlay}
-              disabled={isPlaying}
-              className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-500 hover:to-blue-500 transition-all hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isPlaying ? (
-                <>
-                  <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                  </svg>
-                  Playing...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  Play
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={handlePlay}
+            disabled={isPlaying}
+            className="flex items-center justify-center gap-2 rounded-sm bg-gold px-6 py-2.5 font-display text-lg text-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+          >
+            {isPlaying ? "Playing…" : "Play"}
+          </button>
         </div>
-      </motion.div>
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Small shared editorial section header                              */
+/* ------------------------------------------------------------------ */
+function SectionShell({
+  kicker,
+  title,
+  lede,
+  children,
+  id,
+}: {
+  kicker: string;
+  title: string;
+  lede?: string;
+  children: React.ReactNode;
+  id?: string;
+}) {
+  return (
+    <section id={id} className="border-t border-hairline py-24">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="mb-14 max-w-2xl">
+          <p className="label-mono text-gold">{kicker}</p>
+          <h2 className="mt-3 font-display text-4xl font-bold leading-tight text-paper sm:text-5xl">
+            {title}
+          </h2>
+          {lede && <p className="mt-4 font-serif text-lg text-paper/60">{lede}</p>}
+        </div>
+        {children}
+      </div>
     </section>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Page                                                               */
+/* ------------------------------------------------------------------ */
 export default function Home() {
   const router = useRouter();
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && user) {
-      router.replace("/library");
-    }
+    if (!loading && user) router.replace("/library");
   }, [user, loading, router]);
 
   if (loading) return null;
   if (user) return null;
 
   return (
-    <div className="min-h-screen relative overflow-x-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <ParticleField />
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-purple-600/10 blur-[120px] animate-float" />
-        <div className="absolute top-[20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[120px] animate-float-slow" />
-        <div className="absolute bottom-[-10%] left-[30%] w-[400px] h-[400px] rounded-full bg-emerald-600/8 blur-[100px] animate-float" />
-      </div>
+    <SmoothScroll>
+      <div className="relative min-h-screen overflow-x-hidden bg-[#16130f]">
+        <Masthead />
 
-      {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-6xl mx-auto">
-        <span className="text-xl font-bold gradient-text">Book2Audio</span>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
-            Sign in
-          </Link>
-          <Link
-            href="/register"
-            className="text-sm px-5 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
-          >
-            Get Started
-          </Link>
-        </div>
-      </nav>
+        {/* SCENES 1–5: the cinematic transformation (pinned, scrubbed) */}
+        <TransformStage />
 
-      {/* Hero */}
-      <main className="relative z-10 max-w-6xl mx-auto px-6">
-        <section className="pt-24 pb-20">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1, duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass mb-8 text-sm text-gray-300"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Free & open source
-            </motion.div>
+        {/* SCENE 6: the finished artifact + reversibility */}
+        <ArtifactScene />
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] mb-6">
-              Listen to your{" "}
-              <span className="gradient-text">
-                <TypeWriter words={["books", "PDFs", "papers", "notes", "docs"]} />
-              </span>
-              <br className="hidden sm:block" />
-              <span className="text-gray-400 text-3xl sm:text-4xl lg:text-5xl font-bold">Accurately.</span>
-            </h1>
+        {/* ---- Product sections (restyled, real content preserved) ---- */}
 
-            <p className="text-lg sm:text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto mb-10">
-              Free: no ads, not a limited trial. Figures, tables and math handled
-              correctly. Footnotes, citations and junk text stripped out automatically.
-            </p>
+        {/* Supported formats */}
+        <SectionShell
+          kicker="What you can bring"
+          title="Any document, turned into a voice"
+          lede="Drop in whatever you're reading. Chapters, structure and clean text are handled for you."
+        >
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-hairline bg-hairline sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              ["Research papers", "Academic PDFs"],
+              ["PDF books", "Any PDF file"],
+              ["EPUB books", "E-book format"],
+              ["Web articles", "Any URL"],
+              ["Legal docs", "Contracts & briefs"],
+              ["Plain text", "TXT & markdown"],
+              ["Slides", "Presentations"],
+              ["Word docs", "DOCX files"],
+              ["Scanned forms", "OCR handled"],
+              ["Textbooks", "With equations"],
+            ].map(([label, desc]) => (
+              <div key={label} className="bg-[#16130f] px-5 py-6 transition-colors hover:bg-surface">
+                <p className="font-display text-base text-paper">{label}</p>
+                <p className="label-mono mt-1 text-paper/40">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </SectionShell>
 
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <MagneticButton
-                onClick={() => { window.location.href = "/register"; }}
-                className="px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold text-base hover:from-purple-500 hover:to-blue-500 transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] animate-gradient bg-[length:200%_200%]"
-              >
-                Add your first book
-              </MagneticButton>
-              <a
-                href="#demo"
-                className="px-8 py-3.5 rounded-full text-gray-300 font-medium text-base hover:text-white transition-colors"
-              >
-                Hear a demo →
-              </a>
-            </motion.div>
-          </motion.div>
-
-          {/* Scroll indicator */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.5, duration: 0.5 }}
-            className="mt-16 flex justify-center"
-          >
-            <a href="#demo" className="scroll-indicator text-gray-600 hover:text-gray-400 transition-colors">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </a>
-          </motion.div>
-        </section>
-
-        {/* Interactive Voice Demo */}
+        {/* Interactive voice demo */}
         <VoiceDemoSection />
 
-        {/* Supported Formats */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Works with your documents
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              Drop in whatever you're reading. We handle the rest.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-4 max-w-4xl mx-auto"
-          >
-            {[
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M15 12h-5M15 8h-5M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />
-                </svg>
-              ), label: "Research Papers", desc: "Academic PDFs" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20M8 11h8M8 7h6" />
-                </svg>
-              ), label: "PDF Books", desc: "Any PDF file" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
-                </svg>
-              ), label: "EPUB Books", desc: "E-book format" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20" />
-                </svg>
-              ), label: "Web Articles", desc: "Any URL" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1ZM2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1ZM7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
-                </svg>
-              ), label: "Legal Docs", desc: "Contracts & briefs" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M21 5H3M15 12H3M17 19H3" />
-                </svg>
-              ), label: "Plain Text", desc: "TXT & markdown" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M2 3h20M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3M7 21l5-5 5 5" />
-                </svg>
-              ), label: "Slides", desc: "Presentations" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7ZM14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" />
-                </svg>
-              ), label: "Word Docs", desc: "DOCX files" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01" />
-                </svg>
-              ), label: "Forms", desc: "Scanned docs" },
-              { icon: (
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-              ), label: "Textbooks", desc: "With equations" },
-            ].map((fmt, i) => (
-              <motion.div
-                key={fmt.label}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.05 + i * 0.03 }}
-                className="glass rounded-2xl p-5 text-center hover:bg-white/[0.05] transition-all group"
-              >
-                <div className="flex justify-center mb-3 text-purple-400 group-hover:text-purple-300 group-hover:scale-110 transition-all">{fmt.icon}</div>
-                <p className="font-semibold text-white text-sm">{fmt.label}</p>
-                <p className="text-xs text-gray-500 mt-1">{fmt.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </section>
-
-        {/* How It Works */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Three steps to your audiobook
-            </h2>
-            <p className="text-gray-400">No complicated setup. Just upload and listen.</p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            {[
-              {
-                num: "01",
-                title: "Upload",
-                desc: "Drag & drop your PDF, EPUB, DOCX, or TXT file. We automatically detect chapters and structure.",
-                icon: "📤",
-              },
-              {
-                num: "02",
-                title: "Choose a voice",
-                desc: "Pick from dozens of natural AI voices. Preview them before converting — find the one that fits your book.",
-                icon: "🎙️",
-              },
-              {
-                num: "03",
-                title: "Listen",
-                desc: "Your audiobook is ready. Play in-browser with speed control, sleep timer, and chapter navigation.",
-                icon: "🎧",
-              },
-            ].map((step, i) => (
-              <motion.div
-                key={step.num}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15, duration: 0.5 }}
-                className="relative glass rounded-2xl p-8 hover:bg-white/[0.05] transition-all group"
-              >
-                <div className="flex items-start justify-between mb-6">
-                  <span className="text-4xl group-hover:scale-110 transition-transform">{step.icon}</span>
-                  <span className="text-3xl font-bold text-white/[0.06] font-mono group-hover:text-white/[0.12] transition-colors">
-                    {step.num}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-                <p className="text-sm text-gray-400 leading-relaxed">{step.desc}</p>
-              </motion.div>
-            ))}
+        {/* Voice samples (real audio) */}
+        <SectionShell
+          kicker="The voices"
+          title="Natural narration, not robotic text-to-speech"
+          lede="Press play to hear each voice read a real excerpt."
+          id="demo"
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <AudioSample src="/samples/voice-jenny.mp3" label="Jenny" sublabel="Warm & expressive · Fiction" />
+            <AudioSample src="/samples/voice-guy.mp3" label="Guy" sublabel="Deep & authoritative · Science" />
+            <AudioSample src="/samples/voice-aria.mp3" label="Aria" sublabel="Clear & friendly · Narration" />
+            <AudioSample src="/samples/voice-andrew.mp3" label="Andrew" sublabel="Calm & measured · Non-fiction" />
           </div>
-        </section>
+        </SectionShell>
 
-        {/* Voice Demos */}
-        <section id="demo" className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Hear the voices
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              Natural-sounding AI voices that bring your books to life.
-              Press play to hear each one.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto"
-          >
-            <AudioSample
-              src="/samples/voice-jenny.mp3"
-              label="Jenny"
-              sublabel="Warm & expressive · Fiction"
-            />
-            <AudioSample
-              src="/samples/voice-guy.mp3"
-              label="Guy"
-              sublabel="Deep & authoritative · Science"
-            />
-            <AudioSample
-              src="/samples/voice-aria.mp3"
-              label="Aria"
-              sublabel="Clear & friendly · Narration"
-            />
-            <AudioSample
-              src="/samples/voice-andrew.mp3"
-              label="Andrew"
-              sublabel="Calm & measured · Non-fiction"
-            />
-          </motion.div>
-        </section>
-
-        {/* Sample Books */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Try it yourself
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              These excerpts were converted with Book2Audio. Press play to hear what your books will sound like.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto"
-          >
-            {[
-              {
-                src: "/samples/demo-gatsby.mp3",
-                title: "The Great Gatsby",
-                author: "F. Scott Fitzgerald",
-                category: "Fiction",
-                voice: "Guy",
-                icon: "📖",
-              },
-              {
-                src: "/samples/demo-science.mp3",
-                title: "The Structure of DNA",
-                author: "Science Textbook",
-                category: "Non-fiction",
-                voice: "Jenny",
-                icon: "🔬",
-              },
-              {
-                src: "/samples/demo-philosophy.mp3",
-                title: "The Allegory of the Cave",
-                author: "Plato",
-                category: "Philosophy",
-                voice: "Aria",
-                icon: "🏛️",
-              },
-            ].map((demo) => (
-              <DemoCard key={demo.title} {...demo} />
-            ))}
-          </motion.div>
-        </section>
+        {/* Sample conversions (real audio) */}
+        <SectionShell
+          kicker="Try it yourself"
+          title="Real excerpts, converted with Book2Audio"
+          lede="These were made by the same pipeline you'll use. Press play."
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <DemoCard src="/samples/demo-gatsby.mp3" title="The Great Gatsby" author="F. Scott Fitzgerald" category="Fiction" voice="Guy" />
+            <DemoCard src="/samples/demo-science.mp3" title="The Structure of DNA" author="Science textbook" category="Non-fiction" voice="Jenny" />
+            <DemoCard src="/samples/demo-philosophy.mp3" title="The Allegory of the Cave" author="Plato" category="Philosophy" voice="Aria" />
+          </div>
+        </SectionShell>
 
         {/* Features */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Built for readers
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              Not just text-to-speech. A complete listening experience.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <SectionShell
+          kicker="Built for readers"
+          title="More than text-to-speech — a listening experience"
+        >
+          <div className="grid grid-cols-1 gap-px overflow-hidden rounded-sm border border-hairline bg-hairline sm:grid-cols-2 lg:grid-cols-3">
             {[
-              {
-                title: "High-Accuracy Audio",
-                desc: "Complex documents parsed correctly — tables, figures, and math explained with summaries rather than read verbatim.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Smart Text Removal",
-                desc: "Footnotes, citations, page headings, and other junk text stripped automatically for cleaner audio flow.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <circle cx="6" cy="6" r="3" /><path d="M8.12 8.12 12 12M20 4 8.12 15.88" /><circle cx="6" cy="18" r="3" /><path d="M14.8 14.8 20 20" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Playback Speed",
-                desc: "Listen at 0.5x to 3x speed. Choose your pace and depth — perfect for study sessions or commutes.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path d="M3 3v16a2 2 0 0 0 2 2h16M18 17V9M13 17V5M8 17v-3" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Chapter Navigation",
-                desc: "Navigate with auto-detected table of contents. Jump between chapters and sections instantly.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" /><circle cx="12" cy="12" r="10" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Reader View",
-                desc: "Follow along with reformatted text while you listen. Tap any passage to play from there.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path d="M12 7v14M16 12h2M16 8h2M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3zM6 12h2M6 8h2" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Your Library",
-                desc: "All your converted books in one place. Organize into collections, search your library, and sync across devices.",
-                icon: (
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                  </svg>
-                ),
-              },
-            ].map((feature, i) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.5 }}
-              >
-                <TiltCard className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all group h-full">
-                  <div className="mb-4 text-purple-400 group-hover:text-purple-300 group-hover:scale-110 transition-all inline-block">
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-base font-semibold text-white mb-2">{feature.title}</h3>
-                  <p className="text-sm text-gray-400 leading-relaxed">{feature.desc}</p>
-                </TiltCard>
-              </motion.div>
+              ["High-accuracy audio", "Tables, figures and math are summarised, not garbled — complex documents parsed correctly."],
+              ["Smart text removal", "Footnotes, citations, page headings and other junk stripped automatically for clean flow."],
+              ["Playback speed", "Listen from 0.5× to 3×. Choose your pace for study sessions or commutes."],
+              ["Chapter navigation", "Auto-detected table of contents. Jump between chapters and sections instantly."],
+              ["Reader view", "Follow along with reformatted text while you listen. Tap any passage to play from there."],
+              ["Your library", "Every conversion in one place — organise, search and sync across devices."],
+            ].map(([title, desc]) => (
+              <div key={title} className="bg-[#16130f] p-8 transition-colors hover:bg-surface">
+                <h3 className="font-display text-xl text-paper">{title}</h3>
+                <p className="mt-3 font-serif leading-relaxed text-paper/60">{desc}</p>
+              </div>
             ))}
           </div>
-        </section>
+        </SectionShell>
 
         {/* Comparison */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Why Book2Audio?
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              See how we compare to other audiobook solutions.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="max-w-3xl mx-auto glass rounded-2xl overflow-hidden"
-          >
-            <table className="w-full text-sm">
+        <SectionShell kicker="Why Book2Audio" title="How it compares">
+          <div className="overflow-hidden rounded-sm border border-hairline">
+            <table className="w-full font-serif text-sm">
               <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="text-left p-4 text-gray-400 font-medium">Feature</th>
-                  <th className="p-4 text-center text-purple-300 font-semibold">Book2Audio</th>
-                  <th className="p-4 text-center text-gray-500 font-medium">Audible</th>
-                  <th className="p-4 text-center text-gray-500 font-medium">Speechify</th>
-                  <th className="p-4 text-center text-gray-500 font-medium">Generic TTS</th>
+                <tr className="border-b border-hairline bg-surface">
+                  <th className="p-4 text-left font-normal text-paper/50">Feature</th>
+                  <th className="label-mono p-4 text-center text-gold">Book2Audio</th>
+                  <th className="p-4 text-center font-normal text-paper/40">Audible</th>
+                  <th className="p-4 text-center font-normal text-paper/40">Speechify</th>
+                  <th className="p-4 text-center font-normal text-paper/40">Generic TTS</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { feature: "Your own documents", us: true, audible: false, speechify: true, tts: true },
-                  { feature: "Natural AI voices", us: true, audible: true, speechify: true, tts: false },
-                  { feature: "Handles math & figures", us: true, audible: false, speechify: false, tts: false },
-                  { feature: "Strips footnotes/junk", us: true, audible: false, speechify: false, tts: false },
-                  { feature: "Chapter detection", us: true, audible: true, speechify: false, tts: false },
-                  { feature: "Free to use", us: true, audible: false, speechify: false, tts: true },
-                  { feature: "Resume playback", us: true, audible: true, speechify: true, tts: false },
-                  { feature: "Reader view", us: true, audible: false, speechify: true, tts: false },
-                  { feature: "No subscription", us: true, audible: false, speechify: false, tts: true },
-                  { feature: "Open source", us: true, audible: false, speechify: false, tts: false },
+                  ["Your own documents", true, false, true, true],
+                  ["Natural AI voices", true, true, true, false],
+                  ["Handles math & figures", true, false, false, false],
+                  ["Strips footnotes / junk", true, false, false, false],
+                  ["Chapter detection", true, true, false, false],
+                  ["Free to use", true, false, false, true],
+                  ["Resume playback", true, true, true, false],
+                  ["Reader view", true, false, true, false],
+                  ["No subscription", true, false, false, true],
+                  ["Open source", true, false, false, false],
                 ].map((row, i) => (
-                  <tr key={i} className="border-b border-white/[0.03] last:border-0">
-                    <td className="p-4 text-gray-300">{row.feature}</td>
-                    <td className="p-4 text-center">
-                      {row.us ? <span className="text-emerald-400">✓</span> : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="p-4 text-center">
-                      {row.audible ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="p-4 text-center">
-                      {row.speechify ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="p-4 text-center">
-                      {row.tts ? <span className="text-gray-400">✓</span> : <span className="text-gray-600">—</span>}
-                    </td>
+                  <tr key={i} className="border-b border-hairline last:border-0">
+                    <td className="p-4 text-paper/80">{row[0] as string}</td>
+                    {(row.slice(1) as boolean[]).map((v, j) => (
+                      <td key={j} className="p-4 text-center">
+                        {v ? (
+                          <span className={j === 0 ? "text-gold" : "text-paper/50"}>✓</span>
+                        ) : (
+                          <span className="text-paper/20">—</span>
+                        )}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
             </table>
-          </motion.div>
-        </section>
+          </div>
+        </SectionShell>
 
         {/* Testimonials */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Loved by readers
-            </h2>
-            <p className="text-gray-400 max-w-lg mx-auto">
-              Join thousands who listen to their documents every day.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto"
-          >
+        <SectionShell kicker="Readers" title="What people say">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {[
-              {
-                quote: "This is honestly a life saver. I have ADHD and have difficulty reading words off a page. This has delivered a better product than competitors, automatically converting only relevant text.",
-                author: "App Store reviewer",
-                role: "Student",
-              },
-              {
-                quote: "For me, it's a PhD workflow game changer. Excellent for listening to research papers while commuting. Figures show up clearly and the voices sound natural and engaging.",
-                author: "iOS user",
-                role: "PhD Researcher",
-              },
-              {
-                quote: "I've tried every text to speech app and this is the best. The voices are fantastic, it handles large EPUBs flawlessly, and I can listen offline while hiking without cell coverage.",
-                author: "Power user",
-                role: "Avid Reader",
-              },
-            ].map((t, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all"
-              >
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, j) => (
-                    <svg key={j} className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-300 leading-relaxed mb-4">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/50 to-blue-500/50 flex items-center justify-center text-xs font-bold text-white">
-                    {t.author[0]}
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-white">{t.author}</p>
-                    <p className="text-xs text-gray-500">{t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
+              ["This is honestly a life saver. I have ADHD and struggle reading off a page. It delivers a better product than competitors, converting only the relevant text.", "App Store reviewer", "Student"],
+              ["A PhD workflow game changer. Excellent for research papers on my commute — figures show up clearly and the voices sound natural.", "iOS user", "PhD researcher"],
+              ["I've tried every text-to-speech app and this is the best. Handles large EPUBs flawlessly and I can listen offline while hiking.", "Power user", "Avid reader"],
+            ].map(([quote, author, role], i) => (
+              <figure key={i} className="rounded-sm border border-hairline bg-surface p-7">
+                <blockquote className="font-serif text-lg italic leading-relaxed text-paper/80">
+                  &ldquo;{quote}&rdquo;
+                </blockquote>
+                <figcaption className="mt-5">
+                  <p className="font-display text-paper">{author}</p>
+                  <p className="label-mono text-paper/40">{role}</p>
+                </figcaption>
+              </figure>
             ))}
-          </motion.div>
-        </section>
+          </div>
+        </SectionShell>
 
         {/* FAQ */}
-        <section className="py-20 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-bold text-white mb-3">
-              Frequently asked questions
-            </h2>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="max-w-2xl mx-auto space-y-3"
-          >
+        <SectionShell kicker="Questions" title="Frequently asked">
+          <div className="mx-auto max-w-3xl space-y-px overflow-hidden rounded-sm border border-hairline bg-hairline">
             {[
-              {
-                q: "Is it really free?",
-                a: "Yes. Book2Audio is open source and free to use. There are no ads, no subscription, and no hidden limits.",
-              },
-              {
-                q: "What file formats are supported?",
-                a: "PDF, EPUB, DOCX, TXT, web articles, slides, legal documents, research papers, and more. We automatically detect chapters and structure from headings and formatting.",
-              },
-              {
-                q: "How does it handle tables, figures, and math?",
-                a: "Unlike generic TTS tools that garble complex content, Book2Audio summarizes visual elements like tables and figures, reads math expressions naturally, and removes inline references and footnotes for clean audio.",
-              },
-              {
-                q: "How long does conversion take?",
-                a: "Typically 1-3 minutes for a full book, depending on length. A 200-page book usually takes about 2 minutes.",
-              },
-              {
-                q: "Are the voices realistic?",
-                a: "We use state-of-the-art neural voice engines that produce natural-sounding speech with proper intonation and rhythm. Multiple voices available — press play above to hear for yourself.",
-              },
-              {
-                q: "Who is Book2Audio for?",
-                a: "Anyone who prefers listening — students, researchers, professionals with heavy reading loads, people with ADHD or dyslexia, commuters, or anyone who wants to absorb content while multitasking.",
-              },
-              {
-                q: "Is my data private?",
-                a: "Your books are stored securely and never shared with third parties. You can delete your data at any time.",
-              },
-            ].map((faq, i) => (
-              <details
-                key={i}
-                className="glass rounded-xl group"
-              >
-                <summary className="flex items-center justify-between p-5 cursor-pointer text-white font-medium text-sm hover:text-purple-200 transition-colors list-none">
-                  {faq.q}
-                  <svg className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+              ["Is it really free?", "Yes. Book2Audio is open source and free to use. No ads, no subscription, no hidden limits."],
+              ["What formats are supported?", "PDF, EPUB, DOCX, TXT, web articles, slides, legal documents, research papers and more. Chapters and structure are detected automatically."],
+              ["How does it handle tables, figures and math?", "Unlike generic TTS tools, Book2Audio summarises visual elements like tables and figures, reads math naturally, and removes inline references and footnotes for clean audio."],
+              ["How long does conversion take?", "Typically 1–3 minutes for a full book. A 200-page book usually takes about 2 minutes."],
+              ["Are the voices realistic?", "We use state-of-the-art neural voice engines with natural intonation and rhythm. Multiple voices — press play above to hear."],
+              ["Is my data private?", "Your books are stored securely and never shared with third parties. Delete your data anytime."],
+            ].map(([q, a], i) => (
+              <details key={i} className="group bg-[#16130f]">
+                <summary className="flex cursor-pointer list-none items-center justify-between p-6 font-display text-lg text-paper transition-colors hover:text-gold">
+                  {q}
+                  <span className="text-gold transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="px-5 pb-5 text-sm text-gray-400 leading-relaxed">
-                  {faq.a}
-                </p>
+                <p className="px-6 pb-6 font-serif leading-relaxed text-paper/60">{a}</p>
               </details>
             ))}
-          </motion.div>
-        </section>
+          </div>
+        </SectionShell>
 
         {/* Final CTA */}
-        <section className="py-24 border-t border-white/[0.04]">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-2xl mx-auto"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Ready to listen?
+        <section className="border-t border-hairline py-28">
+          <div className="mx-auto max-w-3xl px-6 text-center">
+            <ClosingWave />
+            <h2 className="mt-8 font-display text-4xl font-bold text-paper sm:text-6xl">
+              Give your library a voice.
             </h2>
-            <p className="text-gray-400 mb-8">
-              Upload your first book and have an audiobook in minutes. No credit card, no catch.
+            <p className="mx-auto mt-5 max-w-xl font-serif text-lg text-paper/60">
+              Upload your first document and have an audiobook in minutes. No credit card, no catch.
             </p>
             <Link
               href="/register"
-              className="inline-flex px-8 py-3.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold text-base hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] active:scale-[0.98]"
+              className="mt-10 inline-flex items-center gap-2 rounded-full bg-gold px-8 py-4 font-display text-xl text-ink transition-transform hover:scale-[1.02] active:scale-95"
             >
-              Add your first book
+              Add your first book →
             </Link>
-          </motion.div>
+          </div>
         </section>
 
-        {/* Footer */}
-        <footer className="py-8 border-t border-white/[0.04] text-center">
-          <p className="text-sm text-gray-600">
+        <footer className="border-t border-hairline py-10 text-center">
+          <p className="label-mono text-paper/30">
             Open source · Privacy-first · No data sold to third parties
           </p>
         </footer>
-      </main>
+      </div>
+    </SmoothScroll>
+  );
+}
+
+/* Small closing waveform flourish (idle, decorative) */
+function ClosingWave() {
+  const wave = useRef<any>(null);
+  useEffect(() => {
+    wave.current?.setAmp(0.7);
+    wave.current?.setLife(1);
+  }, []);
+  return (
+    <div className="mx-auto h-16 w-full max-w-md">
+      <WaveCanvas ref={wave} className="h-full w-full" color="#D08A3E" points={120} lineWidth={2} />
     </div>
   );
 }
 
+/* Sample conversion card (real audio) */
 function DemoCard({
   src,
   title,
   author,
   category,
   voice,
-  icon,
 }: {
   src: string;
   title: string;
   author: string;
   category: string;
   voice: string;
-  icon: string;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -1022,38 +558,32 @@ function DemoCard({
   }, []);
 
   return (
-    <div className="glass rounded-2xl p-6 hover:bg-white/[0.05] transition-all group">
+    <div className="rounded-sm border border-hairline bg-surface p-6 transition-colors hover:border-gold/30">
       <audio ref={audioRef} src={src} preload="metadata" />
-      <div className="flex items-start justify-between mb-4">
-        <span className="text-3xl">{icon}</span>
-        <span className="text-xs px-2.5 py-1 rounded-full bg-white/[0.05] text-gray-400 border border-white/[0.06]">
-          {category}
-        </span>
+      <div className="mb-4 flex items-start justify-between">
+        <span className="label-mono text-gold/70">{category}</span>
+        <span className="label-mono text-paper/40">Voice · {voice}</span>
       </div>
-      <h3 className="text-sm font-semibold text-white mb-1">{title}</h3>
-      <p className="text-xs text-gray-500 mb-1">{author}</p>
-      <p className="text-xs text-gray-600 mb-4">Voice: {voice}</p>
-
+      <h3 className="font-display text-xl text-paper">{title}</h3>
+      <p className="mb-5 font-serif italic text-paper/50">{author}</p>
       <div className="flex items-center gap-3">
         <button
           onClick={toggle}
-          className="w-9 h-9 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shrink-0 hover:scale-110 transition-transform active:scale-95"
+          aria-label={playing ? `Pause ${title}` : `Play ${title}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold text-ink transition-transform hover:scale-110 active:scale-95"
         >
           {playing ? (
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
             </svg>
           ) : (
-            <svg className="w-3.5 h-3.5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="ml-0.5 h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
         </button>
-        <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-200"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper/10">
+          <div className="h-full rounded-full bg-gold transition-[width] duration-200" style={{ width: `${progress}%` }} />
         </div>
       </div>
     </div>
