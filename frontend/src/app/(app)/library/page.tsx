@@ -287,16 +287,16 @@ export default function LibraryPage() {
     return (
       <div className="flex gap-6 h-full">
         <div className="hidden md:block w-64 shrink-0">
-          <div className="glass rounded-2xl p-4 h-full animate-pulse" />
+          <div className="bg-surface border border-hairline rounded-sm p-4 h-full animate-pulse" />
         </div>
         <div className="flex-1 space-y-6">
           <div className="flex items-center justify-between">
-            <div className="h-8 w-40 bg-white/5 rounded-lg animate-pulse" />
-            <div className="h-10 w-28 bg-white/5 rounded-full animate-pulse" />
+            <div className="h-8 w-40 bg-surface rounded-sm animate-pulse" />
+            <div className="h-10 w-28 bg-surface rounded-full animate-pulse" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="glass rounded-2xl p-6 h-48 animate-pulse" />
+              <div key={i} className="bg-surface border border-hairline rounded-sm p-6 h-48 animate-pulse" />
             ))}
           </div>
         </div>
@@ -314,7 +314,7 @@ export default function LibraryPage() {
       {/* Mobile sidebar toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="fixed bottom-6 left-6 z-50 md:hidden w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 hover:bg-purple-500 transition-colors"
+        className="fixed bottom-6 left-6 z-50 md:hidden w-12 h-12 rounded-full bg-gold text-ink flex items-center justify-center shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] hover:scale-[1.02] transition-transform"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           {sidebarOpen ? (
@@ -348,19 +348,19 @@ export default function LibraryPage() {
           overflow-y-auto
         `}
       >
-        <div className="glass rounded-none md:rounded-2xl p-5 h-full space-y-6 border-r border-white/[0.06] md:border-r-0">
+        <div className="bg-surface border border-hairline rounded-none md:rounded-sm p-5 h-full space-y-6 md:border-r">
           {/* Collections */}
           <div>
-            <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="label-mono text-paper/40 mb-3">
               Collections
             </h3>
             <div className="space-y-1">
               <button
                 onClick={() => { setActiveCollection(null); setFileTypeFilter("all"); setStatusFilter("all"); setSortOption("custom"); setSidebarOpen(false); }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-sm text-sm transition-all ${
                   activeCollection === null
-                    ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
-                    : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                    ? "bg-gold/10 text-gold border border-gold/30"
+                    : "text-paper/60 hover:text-paper hover:bg-surface-hover border border-transparent"
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -369,7 +369,7 @@ export default function LibraryPage() {
                   </svg>
                   Queue
                 </span>
-                <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full">
+                <span className="label-mono bg-surface-hover px-2 py-0.5 rounded-full">
                   {queueCount}
                 </span>
               </button>
@@ -387,10 +387,10 @@ export default function LibraryPage() {
                       e.preventDefault();
                       handleDeleteCollection(col.id);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-sm text-sm transition-all ${
                       activeCollection === col.id
-                        ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
-                        : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                        ? "bg-gold/10 text-gold border border-gold/30"
+                        : "text-paper/60 hover:text-paper hover:bg-surface-hover border border-transparent"
                     }`}
                     title="Right-click to delete"
                   >
@@ -400,14 +400,14 @@ export default function LibraryPage() {
                       </svg>
                       {col.name}
                     </span>
-                    <span className="text-xs opacity-60">{col.doc_ids.length}</span>
+                    <span className="label-mono text-paper/40">{col.doc_ids.length}</span>
                   </motion.button>
                 ))}
               </AnimatePresence>
 
               <button
                 onClick={handleNewCollection}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-purple-300 hover:bg-purple-600/10 transition-all"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-sm text-sm text-paper/40 hover:text-gold hover:bg-gold/10 transition-all"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
@@ -419,7 +419,7 @@ export default function LibraryPage() {
 
           {/* File Type */}
           <div>
-            <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="label-mono text-paper/40 mb-3">
               File type
             </h3>
             <div className="space-y-1">
@@ -458,10 +458,10 @@ export default function LibraryPage() {
                 <button
                   key={item.key}
                   onClick={() => { setFileTypeFilter(item.key); setSidebarOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-sm text-sm transition-all ${
                     fileTypeFilter === item.key
-                      ? "bg-purple-600/15 text-purple-300 font-medium border border-purple-500/20 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                      ? "bg-gold/10 text-gold border border-gold/30"
+                      : "text-paper/60 hover:text-paper hover:bg-surface-hover border border-transparent"
                   }`}
                 >
                   {item.icon}
@@ -473,7 +473,7 @@ export default function LibraryPage() {
 
           {/* Status */}
           <div>
-            <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="label-mono text-paper/40 mb-3">
               Status
             </h3>
             <div className="space-y-1">
@@ -502,10 +502,10 @@ export default function LibraryPage() {
                 <button
                   key={item.key}
                   onClick={() => { setStatusFilter(item.key); setSidebarOpen(false); }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-sm text-sm transition-all ${
                     statusFilter === item.key
-                      ? "bg-purple-600/15 text-purple-300 font-medium border border-purple-500/20 shadow-[0_0_8px_rgba(139,92,246,0.15)]"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                      ? "bg-gold/10 text-gold border border-gold/30"
+                      : "text-paper/60 hover:text-paper hover:bg-surface-hover border border-transparent"
                   }`}
                 >
                   {item.icon}
@@ -517,7 +517,7 @@ export default function LibraryPage() {
 
           {/* Sort */}
           <div>
-            <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h3 className="label-mono text-paper/40 mb-3">
               Sort
             </h3>
             <div className="space-y-1">
@@ -530,10 +530,10 @@ export default function LibraryPage() {
                 <button
                   key={item.key}
                   onClick={() => setSortOption(item.key)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-sm text-sm transition-all ${
                     sortOption === item.key
-                      ? "bg-purple-600/15 text-purple-300 border border-purple-500/20"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                      ? "bg-gold/10 text-gold border border-gold/30"
+                      : "text-paper/60 hover:text-paper hover:bg-surface-hover border border-transparent"
                   }`}
                 >
                   <span>
@@ -543,7 +543,7 @@ export default function LibraryPage() {
                     )}
                   </span>
                   {sortOption === item.key && (
-                    <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -559,13 +559,13 @@ export default function LibraryPage() {
         {/* Header row */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-display text-paper">
               {activeCollectionObj ? activeCollectionObj.name : "Queue"}
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="label-mono text-paper/40 mt-1">
               {filteredDocs.length} {filteredDocs.length === 1 ? "document" : "documents"}
               {(fileTypeFilter !== "all" || statusFilter !== "all") && filteredDocs.length === 0 && (
-                <span className="ml-2 text-amber-400/80 text-xs">(filters active)</span>
+                <span className="ml-2 text-gold-soft">(filters active)</span>
               )}
             </p>
           </div>
@@ -574,7 +574,7 @@ export default function LibraryPage() {
             {activeCollectionObj && (
               <button
                 onClick={() => handleDeleteCollection(activeCollectionObj.id)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all"
+                className="label-mono px-3 py-1.5 rounded-sm text-paper/60 hover:text-paper border border-hairline hover:border-hairline-strong transition-all"
               >
                 Edit
               </button>
@@ -594,10 +594,10 @@ export default function LibraryPage() {
                   }
                   setEditMode(!editMode);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                className={`label-mono px-3 py-1.5 rounded-sm transition-all ${
                   editMode
-                    ? "bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30"
-                    : "text-gray-400 hover:text-white border border-white/[0.08] hover:border-white/20"
+                    ? "bg-gold/10 text-gold border border-gold/30 hover:bg-gold/20"
+                    : "text-paper/60 hover:text-paper border border-hairline hover:border-hairline-strong"
                 }`}
               >
                 {editMode ? "Done" : "Edit"}
@@ -605,13 +605,13 @@ export default function LibraryPage() {
             )}
 
             {/* View mode toggle */}
-            <div className="flex items-center border border-white/[0.08] rounded-lg overflow-hidden">
+            <div className="flex items-center border border-hairline rounded-sm overflow-hidden">
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 transition-all ${
                   viewMode === "grid"
-                    ? "bg-purple-600/20 text-purple-300"
-                    : "text-gray-500 hover:text-white hover:bg-white/[0.04]"
+                    ? "bg-gold/10 text-gold"
+                    : "text-paper/40 hover:text-paper hover:bg-surface-hover"
                 }`}
                 title="Grid view"
               >
@@ -623,8 +623,8 @@ export default function LibraryPage() {
                 onClick={() => setViewMode("list")}
                 className={`p-2 transition-all ${
                   viewMode === "list"
-                    ? "bg-purple-600/20 text-purple-300"
-                    : "text-gray-500 hover:text-white hover:bg-white/[0.04]"
+                    ? "bg-gold/10 text-gold"
+                    : "text-paper/40 hover:text-paper hover:bg-surface-hover"
                 }`}
                 title="List view"
               >
@@ -636,7 +636,7 @@ export default function LibraryPage() {
 
             {/* Search */}
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-paper/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -644,14 +644,14 @@ export default function LibraryPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search..."
-                className="w-44 pl-9 pr-3 py-2 bg-white/[0.03] border border-white/[0.08] rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 focus:outline-none transition-all"
+                className="w-44 pl-9 pr-3 py-2 bg-surface border border-hairline rounded-sm text-paper text-sm placeholder-paper/40 focus:border-gold/30 focus:ring-1 focus:ring-gold/20 focus:outline-none transition-all"
               />
             </div>
 
             {/* Add new */}
             <Link
               href="/convert"
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-sm font-semibold hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 hover:shadow-[0_0_20px_rgba(139,92,246,0.25)] active:scale-[0.98]"
+              className="label-mono px-4 py-2 rounded-sm bg-gold text-ink hover:scale-[1.02] transition-all active:scale-[0.98]"
             >
               + Add
             </Link>
@@ -677,13 +677,13 @@ export default function LibraryPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + i * 0.08 }}
-                className="glass rounded-xl p-4 text-center hover-lift"
+                className="bg-surface border border-hairline rounded-sm p-4 text-center hover-lift"
               >
                 <div className="text-2xl mb-1">{stat.icon}</div>
-                <div className="text-lg font-bold text-white">
+                <div className="text-lg font-display text-paper">
                   {stat.value > 0 ? <AnimatedCounter end={stat.value} suffix={stat.suffix} duration={1.5} /> : "—"}
                 </div>
-                <div className="text-xs text-gray-500">{stat.label}</div>
+                <div className="label-mono text-paper/40">{stat.label}</div>
               </motion.div>
             ))}
           </motion.div>
@@ -695,11 +695,11 @@ export default function LibraryPage() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="mb-6 p-3 glass rounded-xl"
+            className="mb-6 p-3 bg-surface border border-hairline rounded-sm"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-400">
-                Add documents to <span className="text-purple-300 font-medium">{activeCollectionObj.name}</span>:
+              <span className="text-xs text-paper/60">
+                Add documents to <span className="text-gold font-medium">{activeCollectionObj.name}</span>:
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -713,10 +713,10 @@ export default function LibraryPage() {
                         ? handleRemoveFromCollection(doc.id, activeCollectionObj.id)
                         : handleAddToCollection(doc.id, activeCollectionObj.id)
                     }
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-sm text-[11px] font-medium transition-all ${
                       isInCollection
-                        ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
-                        : "text-gray-500 hover:text-gray-300 bg-white/[0.03] border border-white/[0.06] hover:border-white/10"
+                        ? "bg-gold/10 text-gold border border-gold/30"
+                        : "text-paper/40 hover:text-paper/60 bg-surface border border-hairline hover:border-hairline-strong"
                     }`}
                   >
                     {isInCollection ? "✓ " : ""}{doc.title.length > 25 ? doc.title.slice(0, 25) + "..." : doc.title}
@@ -733,23 +733,23 @@ export default function LibraryPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-center py-24 glass rounded-2xl"
+            className="text-center py-24 bg-surface border border-hairline rounded-sm"
           >
             <div className="text-6xl mb-6">📚</div>
-            <h2 className="text-xl font-semibold text-white mb-2">Get started</h2>
-            <p className="text-gray-400 text-sm mb-8 max-w-sm mx-auto">
+            <h2 className="text-xl font-display text-paper mb-2">Get started</h2>
+            <p className="text-paper/60 text-sm mb-8 max-w-sm mx-auto">
               Add your documents, books, or web articles to Book2Audio and start listening to them.
             </p>
             <Link
               href="/convert"
-              className="inline-flex px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 active:scale-[0.98]"
+              className="label-mono inline-flex px-8 py-3 rounded-full bg-gold text-ink hover:scale-[1.02] transition-all active:scale-[0.98]"
             >
               Add your first document
             </Link>
           </motion.div>
         ) : filteredDocs.length === 0 ? (
-          <div className="text-center py-16 glass rounded-2xl">
-            <p className="text-gray-400">No documents match your current filters</p>
+          <div className="text-center py-16 bg-surface border border-hairline rounded-sm">
+            <p className="text-paper/60">No documents match your current filters</p>
             <button
               onClick={() => {
                 setFileTypeFilter("all");
@@ -757,7 +757,7 @@ export default function LibraryPage() {
                 setSearch("");
                 setActiveCollection(null);
               }}
-              className="mt-4 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              className="mt-4 text-sm text-gold hover:text-gold-soft transition-colors"
             >
               Clear all filters
             </button>
@@ -772,21 +772,21 @@ export default function LibraryPage() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, doc.id)}
                 onDragEnd={handleDragEnd}
-                className={`flex items-center gap-3 p-3 glass rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
+                className={`flex items-center gap-3 p-3 bg-surface rounded-sm border transition-all cursor-grab active:cursor-grabbing ${
                   draggedId === doc.id
-                    ? "border-purple-500/40 opacity-50 scale-[0.98]"
-                    : "border-white/[0.06] hover:border-white/[0.12]"
+                    ? "border-gold/30 opacity-50 scale-[0.98]"
+                    : "border-hairline hover:border-hairline-strong"
                 }`}
               >
                 {/* Drag handle */}
-                <span className="text-gray-500 select-none text-lg leading-none flex-shrink-0" title="Drag to reorder">
+                <span className="text-paper/40 select-none text-lg leading-none flex-shrink-0" title="Drag to reorder">
                   &#x2261;
                 </span>
 
                 {/* Document info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="font-display text-paper truncate">{doc.title}</p>
+                  <p className="label-mono text-paper/40 mt-0.5">
                     {doc.format?.toUpperCase()}{doc.audio_duration ? ` · ${formatDuration(doc.audio_duration)}` : ""}
                   </p>
                 </div>
@@ -794,7 +794,7 @@ export default function LibraryPage() {
                 {/* Delete button */}
                 <button
                   onClick={() => handleDelete(doc.id)}
-                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-sm text-paper/40 hover:text-burgundy-soft hover:bg-burgundy/15 transition-all"
                   title="Delete document"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -804,14 +804,68 @@ export default function LibraryPage() {
               </div>
             ))}
           </div>
+        ) : viewMode === "list" ? (
+          <div className="bg-surface border border-hairline rounded-sm divide-y divide-hairline overflow-hidden">
+            <AnimatePresence>
+              {filteredDocs.map((doc, i) => {
+                const isReady = doc.status === "completed";
+                const href = isReady ? `/player/${doc.id}` : `/convert?doc=${doc.id}`;
+                return (
+                  <motion.div
+                    key={doc.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ delay: i * 0.04, duration: 0.3 }}
+                    className="group flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-surface-hover transition-colors"
+                  >
+                    {/* Index */}
+                    <span className="label-mono text-gold shrink-0 w-12 tabular-nums">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+
+                    {/* Title + format */}
+                    <Link href={href} className="flex-1 min-w-0">
+                      <h3 className="font-display text-paper text-lg leading-snug truncate group-hover:text-gold-faint transition-colors">
+                        {doc.title}
+                      </h3>
+                      <span className="label-mono text-paper/40">
+                        {doc.format?.toUpperCase()}
+                        {isReady ? "" : doc.status === "converting" ? " · Converting" : doc.status === "uploaded" ? " · Not started" : " · Failed"}
+                      </span>
+                    </Link>
+
+                    {/* Metadata */}
+                    <div className="hidden sm:flex items-center gap-6 shrink-0 label-mono text-paper/40">
+                      <span>{doc.total_word_count.toLocaleString()} words</span>
+                      {doc.audio_duration && <span className="text-gold-soft">{formatDuration(doc.audio_duration)}</span>}
+                    </div>
+
+                    {/* Play / convert affordance */}
+                    <Link
+                      href={href}
+                      className="label-mono shrink-0 px-3 py-1.5 rounded-full bg-gold/10 text-gold border border-gold/30 hover:bg-gold hover:text-ink transition-all"
+                    >
+                      {isReady ? "Play" : doc.status === "uploaded" ? "Convert" : doc.status}
+                    </Link>
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDelete(doc.id)}
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-sm text-paper/40 hover:text-burgundy-soft hover:bg-burgundy/15 transition-all"
+                      title="Delete document"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
         ) : (
-          <div
-            className={
-              viewMode === "grid"
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
-                : "flex flex-col gap-3"
-            }
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <AnimatePresence>
               {filteredDocs.map((doc, i) => (
                 <motion.div
@@ -844,13 +898,13 @@ export default function LibraryPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="bg-[#1a1a1a] rounded-2xl border border-white/[0.1] shadow-2xl p-6 w-80 max-w-[90vw]"
+              className="bg-ink-soft rounded-sm border border-hairline-strong shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] p-6 w-80 max-w-[90vw]"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-white mb-2">
+              <h3 className="text-lg font-display text-paper mb-2">
                 {confirmDelete.type === "collection" ? "Delete collection?" : "Delete document?"}
               </h3>
-              <p className="text-sm text-gray-400 mb-6">
+              <p className="text-sm text-paper/60 mb-6">
                 {confirmDelete.type === "collection"
                   ? "This collection will be removed. Documents inside it will not be deleted."
                   : "This document and its audio will be permanently deleted."}
@@ -858,7 +912,7 @@ export default function LibraryPage() {
               <div className="flex items-center justify-end gap-3">
                 <button
                   onClick={() => setConfirmDelete(null)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+                  className="label-mono px-4 py-2 rounded-sm text-paper/60 hover:text-paper hover:bg-surface-hover transition-all"
                 >
                   Cancel
                 </button>
@@ -871,7 +925,7 @@ export default function LibraryPage() {
                     }
                     setConfirmDelete(null);
                   }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-all"
+                  className="label-mono px-4 py-2 rounded-sm bg-burgundy hover:bg-burgundy-soft text-paper transition-all"
                 >
                   Delete
                 </button>

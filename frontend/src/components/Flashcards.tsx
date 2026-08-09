@@ -61,16 +61,16 @@ export default function FlashcardsView({ docId }: Props) {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-strong rounded-2xl p-8 text-center"
+        className="bg-surface-hover border border-hairline-strong rounded-sm p-8 text-center"
       >
         <div className="text-4xl mb-4">🃏</div>
-        <h3 className="text-lg font-semibold text-white mb-2">Flashcards</h3>
-        <p className="text-sm text-gray-400 mb-6 max-w-sm mx-auto">
+        <h3 className="font-display text-2xl text-paper mb-2">Flashcards</h3>
+        <p className="text-sm font-serif text-paper/60 mb-6 max-w-sm mx-auto">
           Create flashcards from your reading to test yourself. Great for active recall studying.
         </p>
         <button
           onClick={() => setIsEditing(true)}
-          className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-sm font-semibold hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 active:scale-[0.98]"
+          className="px-5 py-2.5 rounded-full bg-gold text-ink text-sm font-semibold hover:bg-gold-soft transition-all hover:scale-105 active:scale-[0.98]"
         >
           Create First Card
         </button>
@@ -82,15 +82,15 @@ export default function FlashcardsView({ docId }: Props) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-strong rounded-2xl overflow-hidden"
+      className="bg-surface-hover border border-hairline-strong rounded-sm overflow-hidden"
     >
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-        <span className="text-sm font-medium text-gray-200">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
+        <span className="font-display text-lg text-paper">
           Flashcards ({cards.length})
         </span>
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/[0.06] transition-all"
+          className="text-xs text-paper/60 hover:text-paper px-3 py-1.5 rounded-sm hover:bg-surface transition-all"
         >
           {isEditing ? "Done" : "+ Add"}
         </button>
@@ -102,19 +102,19 @@ export default function FlashcardsView({ docId }: Props) {
             value={newFront}
             onChange={(e) => setNewFront(e.target.value)}
             placeholder="Question / Front side"
-            className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/50 focus:outline-none"
+            className="w-full px-4 py-3 bg-surface border border-hairline rounded-sm text-paper font-serif text-sm placeholder-paper/40 focus:border-gold/40 focus:outline-none"
           />
           <textarea
             value={newBack}
             onChange={(e) => setNewBack(e.target.value)}
             placeholder="Answer / Back side"
             rows={3}
-            className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/50 focus:outline-none resize-none"
+            className="w-full px-4 py-3 bg-surface border border-hairline rounded-sm text-paper font-serif text-sm placeholder-paper/40 focus:border-gold/40 focus:outline-none resize-none"
           />
           <button
             onClick={addCard}
             disabled={!newFront.trim() || !newBack.trim()}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-sm font-semibold disabled:opacity-50 transition-all"
+            className="w-full py-2.5 rounded-sm bg-gold text-ink text-sm font-semibold disabled:opacity-50 transition-all"
           >
             Add Card
           </button>
@@ -133,15 +133,15 @@ export default function FlashcardsView({ docId }: Props) {
                 animate={{ rotateY: 0, opacity: 1 }}
                 exit={{ rotateY: -90, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className={`absolute inset-0 flex items-center justify-center p-6 rounded-xl text-center ${
+                className={`absolute inset-0 flex items-center justify-center p-6 rounded-sm text-center ${
                   flipped
-                    ? "bg-emerald-500/10 border border-emerald-500/20"
-                    : "bg-white/[0.04] border border-white/[0.08]"
+                    ? "bg-gold/10 border border-gold/30"
+                    : "bg-surface border border-hairline"
                 }`}
               >
                 <div>
-                  <p className="text-xs text-gray-500 mb-2">{flipped ? "Answer" : "Question"}</p>
-                  <p className="text-gray-200 text-sm leading-relaxed">
+                  <p className="label-mono text-paper/40 mb-2">{flipped ? "Answer" : "Question"}</p>
+                  <p className="text-paper font-serif text-sm leading-relaxed">
                     {flipped ? cards[currentIndex]?.back : cards[currentIndex]?.front}
                   </p>
                 </div>
@@ -153,30 +153,30 @@ export default function FlashcardsView({ docId }: Props) {
           <div className="flex items-center justify-between mt-4">
             <button
               onClick={prev}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all"
+              className="px-4 py-2 text-sm text-paper/60 hover:text-paper hover:bg-surface rounded-sm transition-all"
             >
               ← Prev
             </button>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">
+              <span className="label-mono text-paper/40">
                 {currentIndex + 1} / {cards.length}
               </span>
               <button
                 onClick={() => removeCard(cards[currentIndex]?.id)}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                className="text-xs text-paper/40 hover:text-burgundy-soft transition-colors"
               >
                 Delete
               </button>
             </div>
             <button
               onClick={next}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all"
+              className="px-4 py-2 text-sm text-paper/60 hover:text-paper hover:bg-surface rounded-sm transition-all"
             >
               Next →
             </button>
           </div>
 
-          <p className="text-center text-[10px] text-gray-600 mt-3">
+          <p className="text-center label-mono text-paper/40 mt-3">
             Click the card to flip it
           </p>
         </div>

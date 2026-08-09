@@ -139,16 +139,16 @@ export default function ConversionPanel({
 
       <button
         onClick={onBack}
-        className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 group"
+        className="text-sm text-paper/60 hover:text-paper transition-colors flex items-center gap-1.5 group font-serif"
       >
         <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
         Upload a different file
       </button>
 
       {/* Book info */}
-      <div className="glass-strong rounded-2xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-2">{title}</h2>
-        <div className="flex flex-wrap gap-3 text-sm text-gray-400 mb-5">
+      <div className="bg-surface-hover border border-hairline-strong rounded-sm p-6">
+        <h2 className="text-xl font-display text-paper mb-2">{title}</h2>
+        <div className="flex flex-wrap gap-3 mb-5">
           {[
             `${chapters.length} chapter${chapters.length !== 1 ? "s" : ""}`,
             `${wordCount.toLocaleString()} words`,
@@ -156,32 +156,32 @@ export default function ConversionPanel({
           ].map((stat) => (
             <span
               key={stat}
-              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-xs"
+              className="px-3 py-1 rounded-full bg-surface border border-hairline label-mono text-paper/60"
             >
               {stat}
             </span>
           ))}
         </div>
 
-        <div className="rounded-xl border border-white/[0.06] max-h-48 overflow-y-auto">
+        <div className="rounded-sm border border-hairline max-h-48 overflow-y-auto">
           {chapters.map((ch, i) => (
             <div
               key={i}
-              className="flex justify-between items-center px-4 py-2.5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+              className="flex justify-between items-center px-4 py-2.5 border-b border-hairline last:border-0 hover:bg-surface transition-colors"
             >
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-gray-600 w-5">{String(i + 1).padStart(2, "0")}</span>
-                <span className="text-gray-300 text-sm">{ch.title}</span>
+                <span className="label-mono text-paper/40 w-5">{String(i + 1).padStart(2, "0")}</span>
+                <span className="text-paper/60 text-sm font-serif">{ch.title}</span>
               </div>
-              <span className="text-gray-600 text-xs">{ch.word_count.toLocaleString()}</span>
+              <span className="label-mono text-paper/40">{ch.word_count.toLocaleString()}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Audio type selection */}
-      <div className="glass-strong rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-gray-200 mb-4">Audio Type</h3>
+      <div className="bg-surface-hover border border-hairline-strong rounded-sm p-6">
+        <h3 className="label-mono text-paper/60 mb-4">Audio Type</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             {
@@ -219,28 +219,28 @@ export default function ConversionPanel({
               key={type.id}
               onClick={() => setAudioType(type.id)}
               disabled={isConverting}
-              className={`flex flex-col items-start gap-2 p-4 rounded-xl text-left transition-all ${
+              className={`flex flex-col items-start gap-2 p-4 rounded-sm text-left transition-all ${
                 audioType === type.id
-                  ? "bg-purple-600/20 border border-purple-500/40 text-white"
-                  : "bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:bg-white/[0.06] hover:border-white/[0.1]"
+                  ? "bg-gold/10 border border-gold/30 text-paper"
+                  : "bg-surface border border-hairline text-paper/60 hover:bg-surface-hover hover:border-hairline-strong"
               } disabled:opacity-50`}
             >
-              <div className={`${audioType === type.id ? "text-purple-400" : "text-gray-400"}`}>
+              <div className={`${audioType === type.id ? "text-gold" : "text-paper/40"}`}>
                 {type.icon}
               </div>
-              <span className="text-sm font-medium">{type.label}</span>
-              <span className="text-xs text-gray-500 leading-relaxed">{type.description}</span>
+              <span className="text-sm font-serif">{type.label}</span>
+              <span className="text-xs text-paper/40 leading-relaxed font-serif">{type.description}</span>
             </button>
           ))}
         </div>
 
         {/* Reduction preview for summary modes */}
         {audioType !== "full" && (
-          <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs">
-            <span className="text-gray-500">Estimated after summarizing</span>
-            <span className="text-purple-300 font-medium">
+          <div className="mt-4 pt-4 border-t border-hairline flex items-center justify-between text-xs">
+            <span className="text-paper/40 font-serif">Estimated after summarizing</span>
+            <span className="text-gold font-medium label-mono">
               ~{estimatedSummaryWords.toLocaleString()} words · ~{estimatedSummaryMinutes} min audio
-              <span className="text-gray-500 font-normal">
+              <span className="text-paper/40 font-normal">
                 {" "}(down from {wordCount.toLocaleString()})
               </span>
             </span>
@@ -249,10 +249,10 @@ export default function ConversionPanel({
       </div>
 
       {/* Voice selection with preview */}
-      <div className="glass-strong rounded-2xl p-6">
+      <div className="bg-surface-hover border border-hairline-strong rounded-sm p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-200">Choose a voice</h3>
-          <span className="text-xs text-gray-500">Click speaker icon to preview</span>
+          <h3 className="label-mono text-paper/60">Choose a voice</h3>
+          <span className="text-xs text-paper/40 font-serif">Click speaker icon to preview</span>
         </div>
         <motion.div
           className="grid grid-cols-2 sm:grid-cols-4 gap-2"
@@ -275,14 +275,14 @@ export default function ConversionPanel({
               <button
                 onClick={() => setSelectedVoice(voice.id)}
                 disabled={isConverting}
-                className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+                className={`w-full px-4 py-3 rounded-sm text-sm font-serif transition-all text-left ${
                   selectedVoice === voice.id
-                    ? "bg-purple-600/20 border border-purple-500/40 text-white"
-                    : "bg-white/[0.03] border border-white/[0.06] text-gray-300 hover:bg-white/[0.06] hover:border-white/[0.1]"
+                    ? "bg-gold/10 border border-gold/30 text-paper"
+                    : "bg-surface border border-hairline text-paper/60 hover:bg-surface-hover hover:border-hairline-strong"
                 } disabled:opacity-50`}
               >
                 <span className="block">{voice.id}</span>
-                <span className="block text-xs opacity-50 mt-0.5">{voice.gender}</span>
+                <span className="block label-mono opacity-50 mt-0.5">{voice.gender}</span>
               </button>
               <button
                 onClick={(e) => {
@@ -291,8 +291,8 @@ export default function ConversionPanel({
                 }}
                 className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
                   previewPlaying === voice.id
-                    ? "bg-purple-500 text-white scale-110"
-                    : "bg-white/[0.08] text-gray-400 hover:bg-white/[0.15] hover:text-white"
+                    ? "bg-gold text-ink scale-110"
+                    : "bg-surface-active text-paper/60 hover:bg-surface-hover hover:text-paper"
                 }`}
                 title={`Preview ${voice.id}`}
               >
@@ -316,23 +316,23 @@ export default function ConversionPanel({
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-strong rounded-2xl p-6"
+          className="bg-surface-hover border border-hairline-strong rounded-sm p-6"
         >
           <div className="flex justify-between text-sm mb-3">
-            <span className="text-gray-300">
+            <span className="text-paper/60 font-serif">
               Converting chapter {currentChapter} of {chapters.length}...
             </span>
-            <span className="text-purple-300 font-semibold">{progress}%</span>
+            <span className="text-gold font-semibold label-mono">{progress}%</span>
           </div>
-          <div className="w-full bg-white/[0.06] rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-surface rounded-full h-2.5 overflow-hidden">
             <motion.div
-              className="h-full rounded-full bg-gradient-to-r from-purple-600 to-blue-500"
+              className="h-full rounded-full bg-gold"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.5, ease: "easeOut" }}
             />
           </div>
-          <p className="text-xs text-gray-500 mt-3">
+          <p className="text-xs text-paper/40 mt-3 font-serif">
             {progress > 0 && progress < 100
               ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * 0.5)} min remaining`
               : "This may take a few minutes depending on book length."}
@@ -342,9 +342,7 @@ export default function ConversionPanel({
         <motion.button
           onClick={handleConvert}
           disabled={!!error}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-lg hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50 hover:scale-[1.01] hover:shadow-[0_0_30px_rgba(139,92,246,0.2)] active:scale-[0.99]"
-          animate={{ boxShadow: ["0 0 0px rgba(139,92,246,0)", "0 0 20px rgba(139,92,246,0.3)", "0 0 0px rgba(139,92,246,0)"] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="w-full py-4 rounded-sm bg-gold text-ink font-semibold text-lg hover:bg-gold-soft transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
         >
           Convert to Audiobook
         </motion.button>
@@ -354,7 +352,7 @@ export default function ConversionPanel({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300 text-sm"
+          className="bg-burgundy/10 border border-burgundy/30 rounded-sm p-4 text-burgundy-soft text-sm font-serif"
         >
           {error}
         </motion.div>

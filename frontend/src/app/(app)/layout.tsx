@@ -15,21 +15,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
-          <p className="text-sm text-gray-500">Loading...</p>
+          <div className="w-8 h-8 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+          <p className="label-mono text-ink-faint">Loading</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen relative">
-      {/* Background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-purple-600/5 blur-[100px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-blue-600/5 blur-[100px]" />
-      </div>
-
+    <div className="min-h-screen relative bg-[#16130f]">
       <NavBar />
       <main className="relative z-10 max-w-6xl mx-auto px-6 py-8 pb-24">{children}</main>
       <FloatingUpload />

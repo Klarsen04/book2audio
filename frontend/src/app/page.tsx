@@ -157,16 +157,76 @@ function VoiceDemoSection() {
   const [activeTab, setActiveTab] = useState<string>("research");
   const [selectedVoice, setSelectedVoice] = useState(voiceOptions[0].id);
   const [speed, setSpeed] = useState("1x");
+  const [isLoading, setIsLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const objectUrl = useRef<string | null>(null);
+
+  // Wire up real playback state from the audio element.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onPlay = () => setIsPlaying(true);
+    const onDone = () => setIsPlaying(false);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onDone);
+    audio.addEventListener("ended", onDone);
+    return () => {
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onDone);
+      audio.removeEventListener("ended", onDone);
+    };
+  }, []);
+
+  // Reflect the speed dropdown onto the audio element live.
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = parseFloat(speed) || 1;
+    }
+  }, [speed, isPlaying]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    };
+  }, []);
 
   const handlePlay = async () => {
-    setIsPlaying(true);
-    try {
-      await fetch(`/api/voices/preview/${selectedVoice}`, { method: "POST" });
-    } catch {
-      /* demo only */
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Toggle off if already playing.
+    if (isPlaying) {
+      audio.pause();
+      return;
     }
-    setTimeout(() => setIsPlaying(false), 3000);
+
+    setError(false);
+    setIsLoading(true);
+    try {
+      // Stop any other audio on the page.
+      document.querySelectorAll("audio").forEach((a) => {
+        if (a !== audio) a.pause();
+      });
+
+      const text = voiceDemoTexts[activeTab];
+      const res = await fetch(
+        `/api/voices/preview/${selectedVoice}?text=${encodeURIComponent(text)}`
+      );
+      if (!res.ok) throw new Error(`Preview failed (${res.status})`);
+
+      const blob = await res.blob();
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = URL.createObjectURL(blob);
+      audio.src = objectUrl.current;
+      audio.playbackRate = parseFloat(speed) || 1;
+      await audio.play();
+    } catch {
+      setError(true);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -226,12 +286,38 @@ function VoiceDemoSection() {
           </div>
           <button
             onClick={handlePlay}
-            disabled={isPlaying}
+            disabled={isLoading}
+            aria-label={isPlaying ? "Stop preview" : "Play preview"}
             className="flex items-center justify-center gap-2 rounded-sm bg-gold px-6 py-2.5 font-display text-lg text-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-60"
           >
-            {isPlaying ? "Playing…" : "Play"}
+            {isLoading ? (
+              <>
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-ink/30 border-t-ink" />
+                Loading…
+              </>
+            ) : isPlaying ? (
+              <>
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+                Stop
+              </>
+            ) : (
+              <>
+                <svg className="ml-0.5 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                Play
+              </>
+            )}
           </button>
         </div>
+        {error && (
+          <p className="mt-4 font-serif text-sm text-burgundy-soft">
+            Couldn&rsquo;t generate that preview just now. Please try again.
+          </p>
+        )}
+        <audio ref={audioRef} preload="none" />
       </div>
     </SectionShell>
   );

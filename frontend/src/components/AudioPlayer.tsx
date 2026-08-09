@@ -390,22 +390,22 @@ export default function AudioPlayer({
       {/* Title section */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600/20 to-blue-600/20 border border-purple-500/20 flex items-center justify-center text-2xl shrink-0">
+          <div className="w-14 h-14 rounded-sm bg-gold/10 border border-gold/30 flex items-center justify-center text-2xl shrink-0">
             🎧
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-white truncate">{title}</h2>
+              <h2 className="font-display text-xl text-paper truncate">{title}</h2>
               {isPlaying && <Waveform isPlaying={isPlaying} />}
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="label-mono text-paper/40">
               {chapters.length} chapter{chapters.length !== 1 ? "s" : ""} · {formatTime(duration)}
             </p>
           </div>
         </div>
         <button
           onClick={handleDownload}
-          className="p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+          className="p-2.5 rounded-sm text-paper/60 hover:text-paper hover:bg-surface-hover transition-all"
           title="Download audio"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -417,8 +417,8 @@ export default function AudioPlayer({
       {/* Audio element created imperatively via useEffect - no JSX element needed */}
       {audioLoading && (
         <div className="flex items-center justify-center py-2">
-          <div className="w-4 h-4 rounded-full border-2 border-purple-500/30 border-t-purple-500 animate-spin" />
-          <span className="ml-2 text-xs text-gray-500">Loading audio...</span>
+          <div className="w-4 h-4 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+          <span className="ml-2 label-mono text-paper/40">Loading audio...</span>
         </div>
       )}
 
@@ -437,26 +437,26 @@ export default function AudioPlayer({
             onChange={handleSeek}
             className="w-full relative z-10 opacity-0 cursor-pointer h-6"
           />
-          <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-white/[0.08] overflow-hidden pointer-events-none group-hover:h-2 transition-all">
+          <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-hairline overflow-hidden pointer-events-none group-hover:h-2 transition-all">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-[width] duration-100"
+              className="h-full rounded-full bg-gold transition-[width] duration-100"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
           <div
-            className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_8px_rgba(139,92,246,0.5)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+            className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-gold opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
             style={{ left: `calc(${progressPercent}% - 7px)` }}
           />
           {hoverTime !== null && (
             <div
-              className="absolute -top-8 px-2 py-1 glass-strong rounded text-[10px] text-white pointer-events-none -translate-x-1/2 transition-opacity"
+              className="absolute -top-8 px-2 py-1 bg-surface-hover border border-hairline-strong rounded-sm label-mono text-gold pointer-events-none -translate-x-1/2 transition-opacity"
               style={{ left: hoverX }}
             >
               {formatTime(hoverTime)}
             </div>
           )}
         </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-2">
+        <div className="flex justify-between label-mono text-paper/40 mt-2">
           <span>{formatTime(currentTime)}</span>
           <span>-{formatTime(Math.max(0, duration - currentTime))}</span>
         </div>
@@ -481,10 +481,10 @@ export default function AudioPlayer({
                 showToast("Loop cleared");
               }
             }}
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`label-mono flex items-center gap-1 px-2 py-1.5 rounded-sm transition-all ${
               loopA !== null
-                ? "bg-orange-600/20 text-orange-300 border border-orange-500/30"
-                : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                ? "bg-gold/10 text-gold border border-gold/30"
+                : "text-paper/60 hover:text-paper hover:bg-surface-hover"
             }`}
             title={loopA === null ? "Set loop start (A)" : loopB === null ? "Set loop end (B)" : "Clear loop"}
           >
@@ -496,7 +496,7 @@ export default function AudioPlayer({
           <div className="relative" ref={volumeRef}>
             <button
               onClick={() => setShowVolume(!showVolume)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+              className="p-1.5 rounded-sm text-paper/60 hover:text-paper hover:bg-surface-hover transition-all"
               title="Volume"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -510,7 +510,7 @@ export default function AudioPlayer({
               </svg>
             </button>
             {showVolume && (
-              <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 glass-strong rounded-xl p-3 shadow-2xl">
+              <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-surface-hover border border-hairline-strong rounded-sm p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]">
                 <input
                   type="range"
                   min={0}
@@ -528,7 +528,7 @@ export default function AudioPlayer({
         <div className="flex items-center gap-5">
           <button
             onClick={() => skip(-30)}
-            className="text-gray-400 hover:text-white transition-all hover:scale-110 active:scale-95"
+            className="text-paper/60 hover:text-paper transition-all hover:scale-110 active:scale-95"
             title="Back 30s (← or Shift+← for 10s)"
           >
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -541,26 +541,20 @@ export default function AudioPlayer({
             <svg className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] -rotate-90">
               <circle
                 cx="50%" cy="50%" r="30"
-                fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2"
+                fill="none" stroke="rgba(244,241,234,0.10)" strokeWidth="2"
               />
               <circle
                 cx="50%" cy="50%" r="30"
-                fill="none" stroke="url(#progress-gradient)" strokeWidth="2"
+                fill="none" stroke="#B45309" strokeWidth="2"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 30}`}
                 strokeDashoffset={`${2 * Math.PI * 30 * (1 - progressPercent / 100)}`}
                 className="transition-all duration-300"
               />
-              <defs>
-                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#60a5fa" />
-                </linearGradient>
-              </defs>
             </svg>
             <button
               onClick={togglePlay}
-              className="relative w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-110 hover:shadow-[0_0_25px_rgba(139,92,246,0.4)] active:scale-95"
+              className="relative w-14 h-14 rounded-full bg-gold text-ink flex items-center justify-center hover:bg-gold-soft transition-all hover:scale-110 active:scale-95"
             >
               {isPlaying ? (
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -576,7 +570,7 @@ export default function AudioPlayer({
 
           <button
             onClick={() => skip(30)}
-            className="text-gray-400 hover:text-white transition-all hover:scale-110 active:scale-95"
+            className="text-paper/60 hover:text-paper transition-all hover:scale-110 active:scale-95"
             title="Forward 30s (→ or Shift+→ for 10s)"
           >
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -589,7 +583,7 @@ export default function AudioPlayer({
       </div>
 
       {/* Keyboard shortcuts hint */}
-      <div className="mt-4 pt-4 border-t border-white/[0.04] hidden sm:flex items-center justify-center gap-4 text-[11px] text-gray-600">
+      <div className="mt-4 pt-4 border-t border-hairline hidden sm:flex items-center justify-center gap-4 label-mono text-paper/40">
         <span>Space: play/pause</span>
         <span>←/→: skip 30s</span>
         <span>↑/↓: volume</span>

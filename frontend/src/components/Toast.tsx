@@ -40,7 +40,7 @@ export default function ToastProvider() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.9 }}
             transition={{ duration: 0.2 }}
-            className="px-4 py-2 glass-strong rounded-full text-sm text-gray-200 shadow-lg"
+            className="px-4 py-2 bg-surface-hover border border-hairline-strong rounded-full text-sm text-paper font-serif shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]"
           >
             {toast.text}
           </motion.div>

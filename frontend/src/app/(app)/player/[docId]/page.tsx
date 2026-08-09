@@ -207,9 +207,9 @@ export default function PlayerPage() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="h-6 w-32 bg-white/5 rounded animate-pulse" />
-        <div className="glass rounded-2xl h-48 animate-pulse" />
-        <div className="glass rounded-2xl h-96 animate-pulse" />
+        <div className="h-6 w-32 bg-surface rounded-sm animate-pulse" />
+        <div className="bg-surface border border-hairline rounded-sm h-48 animate-pulse" />
+        <div className="bg-surface border border-hairline rounded-sm h-96 animate-pulse" />
       </div>
     );
   }
@@ -218,8 +218,8 @@ export default function PlayerPage() {
     return (
       <div className="text-center py-20">
         <div className="text-5xl mb-4">😕</div>
-        <p className="text-red-300 mb-4">{error}</p>
-        <Link href="/library" className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+        <p className="text-burgundy-soft mb-4">{error}</p>
+        <Link href="/library" className="text-gold hover:text-gold-soft text-sm font-medium transition-colors">
           ← Back to library
         </Link>
       </div>
@@ -232,8 +232,8 @@ export default function PlayerPage() {
     return (
       <div className="text-center py-20">
         <div className="text-5xl mb-4">⏳</div>
-        <p className="text-gray-400 mb-4">This document hasn&apos;t been converted yet.</p>
-        <Link href="/library" className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+        <p className="text-paper/60 mb-4">This document hasn&apos;t been converted yet.</p>
+        <Link href="/library" className="text-gold hover:text-gold-soft text-sm font-medium transition-colors">
           ← Back to library
         </Link>
       </div>
@@ -250,7 +250,7 @@ export default function PlayerPage() {
       <div className="flex items-center justify-between">
         <Link
           href="/library"
-          className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 group"
+          className="label-mono text-paper/60 hover:text-paper transition-colors flex items-center gap-1.5 group"
         >
           <span className="group-hover:-translate-x-0.5 transition-transform">←</span>
           Back to library
@@ -258,10 +258,10 @@ export default function PlayerPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={toggleAutoplay}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-all ${
               autoplayNext
-                ? "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20"
-                : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                ? "text-gold bg-gold/10 border border-gold/30"
+                : "text-paper/60 hover:text-paper hover:bg-surface-hover"
             }`}
             title="Auto-play next document when audio ends"
           >
@@ -283,7 +283,7 @@ export default function PlayerPage() {
               navigator.clipboard.writeText(url);
               showToast("Link copied!");
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium text-paper/60 hover:text-paper hover:bg-surface-hover transition-all"
             title="Copy link with timestamp"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,15 +291,15 @@ export default function PlayerPage() {
             </svg>
             Share
           </button>
-          <div className="flex items-center gap-1 bg-white/[0.03] rounded-xl p-1 border border-white/[0.06]">
+          <div className="flex items-center gap-1 bg-surface rounded-sm p-1 border border-hairline">
             {(["reader", "notes", "flashcards", "none"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`text-xs px-3 py-1.5 rounded-lg transition-all font-medium ${
+                className={`label-mono px-3 py-1.5 rounded-sm transition-all ${
                   activeTab === tab
-                    ? "bg-purple-600/20 text-purple-300"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "bg-gold/10 text-gold"
+                    : "text-paper/40 hover:text-paper/60"
                 }`}
               >
                 {tab === "none" ? "Minimal" : tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -326,7 +326,7 @@ export default function PlayerPage() {
 
       {/* Chapter progress mini-map */}
       {document.chapters.length > 1 && (
-        <div className="glass rounded-xl p-4">
+        <div className="bg-surface border border-hairline rounded-sm p-4">
           <div className="flex items-center gap-1">
             {document.chapters.map((ch, i) => {
               const isComplete = i < currentChapterIndex;
@@ -347,15 +347,15 @@ export default function PlayerPage() {
                   className="flex-1 group relative"
                   title={ch.title}
                 >
-                  <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-hairline overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-300 ${
-                        isComplete ? "bg-emerald-500/60" : isCurrent ? "bg-gradient-to-r from-purple-500 to-blue-500" : ""
+                        isComplete ? "bg-gold/50" : isCurrent ? "bg-gold" : ""
                       }`}
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 glass-strong rounded text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-surface-hover border border-hairline-strong rounded-sm text-[10px] text-paper/60 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                     {ch.title}
                   </div>
                 </button>
@@ -363,11 +363,11 @@ export default function PlayerPage() {
             })}
           </div>
           <div className="flex justify-between mt-2">
-            <span className="text-[10px] text-gray-600">Ch. 1</span>
-            <span className="text-[10px] text-gray-500 font-medium">
+            <span className="label-mono text-paper/40">Ch. 1</span>
+            <span className="label-mono text-gold">
               Chapter {currentChapterIndex + 1} of {document.chapters.length}
             </span>
-            <span className="text-[10px] text-gray-600">Ch. {document.chapters.length}</span>
+            <span className="label-mono text-paper/40">Ch. {document.chapters.length}</span>
           </div>
         </div>
       )}
@@ -382,7 +382,7 @@ export default function PlayerPage() {
         >
           <div className="relative">
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-paper/40 pointer-events-none"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -394,7 +394,7 @@ export default function PlayerPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search transcript..."
-              className="w-full pl-9 pr-4 py-2 text-sm rounded-xl glass border border-white/[0.06] bg-white/[0.03] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 transition-all"
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-sm bg-surface border border-hairline text-paper font-serif placeholder-paper/40 focus:outline-none focus:border-gold/40 focus:ring-1 focus:ring-gold/20 transition-all"
             />
           </div>
           <ReaderView
@@ -442,15 +442,15 @@ export default function PlayerPage() {
         const nextDoc = getNextCompletedDoc();
         if (!nextDoc) return null;
         return (
-          <div className="glass rounded-xl px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-surface border border-hairline rounded-sm px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-paper/60">
+              <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
               </svg>
-              <span>Up next:</span>
+              <span className="label-mono text-paper/40">Up next:</span>
               <Link
                 href={`/player/${nextDoc.id}`}
-                className="text-purple-300 hover:text-purple-200 font-medium transition-colors"
+                className="text-gold hover:text-gold-soft font-medium transition-colors"
               >
                 {nextDoc.title} &rarr;
               </Link>

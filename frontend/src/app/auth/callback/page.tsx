@@ -25,13 +25,13 @@ function CallbackHandler() {
     }
   }, [router, searchParams]);
 
-  return <p className="text-gray-400">Signing you in...</p>;
+  return <p className="label-mono text-paper/50">Signing you in...</p>;
 }
 
 export default function AuthCallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Suspense fallback={<p className="text-gray-400">Loading...</p>}>
+    <div className="min-h-screen flex items-center justify-center bg-[#16130f]">
+      <Suspense fallback={<p className="label-mono text-paper/50">Loading...</p>}>
         <CallbackHandler />
       </Suspense>
     </div>

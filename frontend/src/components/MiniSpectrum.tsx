@@ -16,7 +16,7 @@ export default function MiniSpectrum({ isPlaying, barCount = 12 }: Props) {
         return (
           <motion.div
             key={i}
-            className="w-[2px] rounded-full bg-gradient-to-t from-purple-600 to-blue-400"
+            className="w-[2px] rounded-full bg-gold"
             animate={
               isPlaying
                 ? {

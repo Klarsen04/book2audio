@@ -51,8 +51,8 @@ export default function ConvertPage() {
   if (loadingDoc) {
     return (
       <div className="max-w-3xl mx-auto">
-        <div className="h-8 w-48 bg-white/5 rounded-lg animate-pulse mb-8" />
-        <div className="glass rounded-2xl h-64 animate-pulse" />
+        <div className="h-8 w-48 bg-surface rounded-sm animate-pulse mb-8" />
+        <div className="bg-surface border border-hairline rounded-sm h-64 animate-pulse" />
       </div>
     );
   }
@@ -64,9 +64,12 @@ export default function ConvertPage() {
       transition={{ duration: 0.3 }}
       className="max-w-3xl mx-auto"
     >
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Convert a Book</h1>
-        <p className="text-sm text-gray-500 mt-1">Upload a file and transform it into an audiobook.</p>
+      <div className="mb-10">
+        <p className="label-mono text-gold">New conversion</p>
+        <h1 className="mt-2 font-display text-4xl font-bold text-paper">Turn a page into a voice</h1>
+        <p className="mt-2 font-serif text-paper/60">
+          Upload a document — we detect its chapters, strip the junk, and read it aloud.
+        </p>
       </div>
 
       <AnimatePresence mode="wait">

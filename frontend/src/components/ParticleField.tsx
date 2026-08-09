@@ -47,7 +47,7 @@ export default function ParticleField() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(139, 92, 246, ${p.opacity})`;
+        ctx.fillStyle = `rgba(208, 138, 62, ${p.opacity})`;
         ctx.fill();
       });
 
@@ -61,7 +61,7 @@ export default function ParticleField() {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(q.x, q.y);
-            ctx.strokeStyle = `rgba(139, 92, 246, ${0.05 * (1 - dist / 120)})`;
+            ctx.strokeStyle = `rgba(244, 241, 234, ${0.04 * (1 - dist / 120)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -84,7 +84,7 @@ export default function ParticleField() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none opacity-60"
+      className="absolute inset-0 w-full h-full pointer-events-none opacity-30"
     />
   );
 }

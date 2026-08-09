@@ -88,12 +88,12 @@ export default function StudyTimer({ onTimerEnd }: Props) {
       <div className="flex items-center gap-1.5">
         <button
           onClick={() => (!isRunning ? setIsOpen(!isOpen) : undefined)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`label-mono flex items-center gap-2 px-3 py-1.5 rounded-sm transition-all ${
             isRunning
               ? mode === "focus"
-                ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
-                : "bg-amber-600/20 text-amber-300 border border-amber-500/30"
-              : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                ? "bg-gold/10 text-gold border border-gold/30"
+                : "bg-surface-hover text-paper/60 border border-hairline-strong"
+              : "text-paper/60 hover:text-paper hover:bg-surface-hover"
           }`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,7 +102,7 @@ export default function StudyTimer({ onTimerEnd }: Props) {
           {isRunning ? (
             <span>
               {mode === "focus" ? "Focus" : "Break"} {formatTime(remaining)}
-              {isPaused && <span className="ml-1 text-gray-400">(paused)</span>}
+              {isPaused && <span className="ml-1 text-paper/40">(paused)</span>}
             </span>
           ) : (
             "Study Timer"
@@ -113,10 +113,10 @@ export default function StudyTimer({ onTimerEnd }: Props) {
           <>
             <button
               onClick={pause}
-              className={`p-1.5 rounded-lg text-xs transition-all ${
+              className={`p-1.5 rounded-sm text-xs transition-all ${
                 isPaused
-                  ? "bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30"
-                  : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                  ? "bg-gold/10 text-gold hover:bg-gold/20"
+                  : "text-paper/60 hover:text-paper hover:bg-surface-hover"
               }`}
               title={isPaused ? "Resume" : "Pause"}
             >
@@ -132,7 +132,7 @@ export default function StudyTimer({ onTimerEnd }: Props) {
             </button>
             <button
               onClick={reset}
-              className="p-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              className="p-1.5 rounded-sm text-xs text-paper/60 hover:text-burgundy-soft hover:bg-burgundy/10 transition-all"
               title="Reset timer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,9 +144,9 @@ export default function StudyTimer({ onTimerEnd }: Props) {
       </div>
 
       {isRunning && (
-        <div className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-white/[0.06] overflow-hidden">
+        <div className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-hairline overflow-hidden">
           <motion.div
-            className={`h-full rounded-full ${mode === "focus" ? "bg-emerald-500" : "bg-amber-500"}`}
+            className={`h-full rounded-full ${mode === "focus" ? "bg-gold" : "bg-gold/50"}`}
             animate={{ width: `${progress * 100}%` }}
             transition={{ duration: 1 }}
           />
@@ -159,22 +159,22 @@ export default function StudyTimer({ onTimerEnd }: Props) {
             initial={{ opacity: 0, y: 5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 5, scale: 0.95 }}
-            className="absolute top-full mt-2 left-0 glass-strong rounded-xl p-4 shadow-2xl w-56 z-50"
+            className="absolute top-full mt-2 left-0 bg-surface-hover border border-hairline-strong rounded-sm p-4 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] w-56 z-50"
           >
-            <p className="text-xs font-medium text-gray-300 mb-3">Start a study session</p>
+            <p className="label-mono text-paper/40 mb-3">Start a study session</p>
             <div className="space-y-2">
               {(Object.entries(PRESETS) as [keyof typeof PRESETS, typeof PRESETS[keyof typeof PRESETS]][]).map(([key, val]) => (
                 <button
                   key={key}
                   onClick={() => start(key)}
-                  className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition-all text-gray-300"
+                  className="w-full text-left px-3 py-2 rounded-sm text-sm font-serif bg-surface hover:bg-surface-hover border border-hairline transition-all text-paper/60"
                 >
                   {val.label}
                 </button>
               ))}
             </div>
             {sessions > 0 && (
-              <p className="text-[10px] text-gray-500 mt-3 text-center">
+              <p className="label-mono text-paper/40 mt-3 text-center">
                 {sessions} session{sessions !== 1 ? "s" : ""} completed today
               </p>
             )}

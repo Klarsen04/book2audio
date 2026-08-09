@@ -105,12 +105,12 @@ export default function NotesPanel({ docId }: Props) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-strong rounded-2xl overflow-hidden"
+      className="bg-surface-hover border border-hairline-strong rounded-sm overflow-hidden"
     >
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-200">Notes</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${saved ? "text-emerald-400 bg-emerald-500/10" : "text-amber-400 bg-amber-500/10"}`}>
+          <span className="font-display text-lg text-paper">Notes</span>
+          <span className={`label-mono px-2 py-0.5 rounded-full transition-colors ${saved ? "text-gold bg-gold/10" : "text-paper/60 bg-surface"}`}>
             {saved ? "Saved" : "Unsaved"}
           </span>
         </div>
@@ -118,7 +118,7 @@ export default function NotesPanel({ docId }: Props) {
           <div className="relative" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-all"
+              className="flex items-center gap-1 text-xs text-paper/60 hover:text-paper px-2 py-1 rounded-sm hover:bg-surface transition-all"
               title="Export notes"
             >
               {copyFeedback ? "Copied!" : "Export"}
@@ -127,30 +127,30 @@ export default function NotesPanel({ docId }: Props) {
               </svg>
             </button>
             {showExportMenu && (
-              <div className="absolute right-0 top-full mt-1 w-44 glass-strong rounded-xl shadow-2xl border border-white/[0.08] overflow-hidden z-50">
+              <div className="absolute right-0 top-full mt-1 w-44 bg-surface-hover rounded-sm shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] border border-hairline-strong overflow-hidden z-50">
                 <button
                   onClick={handleExportMarkdown}
-                  className="w-full text-left px-3 py-2.5 text-xs text-gray-300 hover:bg-white/[0.06] transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 text-xs text-paper/60 hover:bg-surface transition-colors flex items-center gap-2"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-paper/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Markdown (.md)
                 </button>
                 <button
                   onClick={handleExportText}
-                  className="w-full text-left px-3 py-2.5 text-xs text-gray-300 hover:bg-white/[0.06] transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 text-xs text-paper/60 hover:bg-surface transition-colors flex items-center gap-2"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-paper/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Plain text (.txt)
                 </button>
                 <button
                   onClick={handleCopyToClipboard}
-                  className="w-full text-left px-3 py-2.5 text-xs text-gray-300 hover:bg-white/[0.06] transition-colors flex items-center gap-2 border-t border-white/[0.06]"
+                  className="w-full text-left px-3 py-2.5 text-xs text-paper/60 hover:bg-surface transition-colors flex items-center gap-2 border-t border-hairline"
                 >
-                  <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 text-paper/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                   </svg>
                   Copy to clipboard
@@ -160,7 +160,7 @@ export default function NotesPanel({ docId }: Props) {
           </div>
           <button
             onClick={handleSave}
-            className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-all"
+            className="text-xs text-paper/60 hover:text-paper px-2 py-1 rounded-sm hover:bg-surface transition-all"
           >
             Save
           </button>
@@ -170,9 +170,9 @@ export default function NotesPanel({ docId }: Props) {
         value={notes}
         onChange={(e) => handleChange(e.target.value)}
         placeholder="Take notes while listening... Supports markdown formatting."
-        className="w-full h-64 p-5 bg-transparent text-gray-300 text-sm leading-relaxed resize-none focus:outline-none placeholder-gray-600"
+        className="w-full h-64 p-5 bg-transparent text-paper/80 font-serif text-sm leading-relaxed resize-none focus:outline-none placeholder-paper/40"
       />
-      <div className="px-5 py-2 border-t border-white/[0.04] flex justify-between text-[10px] text-gray-600">
+      <div className="px-5 py-2 border-t border-hairline flex justify-between label-mono text-paper/40">
         <span>{notes.split(/\s+/).filter(Boolean).length} words</span>
         <span>Auto-saves every 2s</span>
       </div>

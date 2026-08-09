@@ -234,7 +234,7 @@ export default function ReaderView({
           <mark
             key={idx}
             ref={isFirst ? (el) => { firstMatchRef.current = el; } : undefined}
-            className="bg-amber-400/30 text-amber-200 rounded-sm px-0.5"
+            className="bg-gold/30 text-gold rounded-sm px-0.5"
           >
             {part}
           </mark>
@@ -282,27 +282,27 @@ export default function ReaderView({
   };
 
   return (
-    <div className="glass-strong rounded-2xl overflow-hidden">
+    <div className="bg-surface-hover border border-hairline-strong rounded-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-hairline">
         <button
           onClick={() => setShowToc(!showToc)}
-          className="flex items-center gap-2.5 text-sm text-gray-400 hover:text-white transition-colors"
+          className="label-mono flex items-center gap-2.5 text-paper/60 hover:text-paper transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          <span className="font-medium">Chapters</span>
+          <span>Chapters</span>
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 bg-white/[0.04] px-3 py-1 rounded-full">
+          <span className="label-mono text-gold bg-gold/10 px-3 py-1 rounded-full">
             {selectedChapter + 1} / {chapters.length}
           </span>
           {/* Settings menu button */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+              className="p-1.5 rounded-sm text-paper/60 hover:text-paper hover:bg-surface transition-all"
               title="Reader settings"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -314,10 +314,10 @@ export default function ReaderView({
 
             {/* Settings Panel */}
             {showSettings && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-[#1a1a1a] rounded-xl shadow-2xl border border-white/[0.1] p-4 space-y-4">
+              <div className="absolute right-0 top-full mt-2 z-50 w-72 bg-surface-hover rounded-sm shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] border border-hairline-strong p-4 space-y-4">
                 {/* Font Family */}
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                  <label className="label-mono text-paper/40 mb-2 block">
                     Font Family
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -325,10 +325,10 @@ export default function ReaderView({
                       <button
                         key={font}
                         onClick={() => updateSettings({ fontFamily: font })}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all text-left ${
+                        className={`px-3 py-2 rounded-sm text-xs font-medium transition-all text-left ${
                           readerSettings.fontFamily === font
-                            ? "bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40"
-                            : "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]"
+                            ? "bg-gold/10 text-gold ring-1 ring-gold/30"
+                            : "bg-surface text-paper/60 hover:bg-surface-hover"
                         }`}
                       >
                         {font === "sans-serif" && "Sans-serif"}
@@ -337,7 +337,7 @@ export default function ReaderView({
                         {font === "dyslexic" && (
                           <span>
                             Dyslexic
-                            <span className="block text-[10px] text-gray-500 font-normal mt-0.5">
+                            <span className="block text-[10px] text-paper/40 font-normal mt-0.5">
                               (better for dyslexia)
                             </span>
                           </span>
@@ -349,13 +349,13 @@ export default function ReaderView({
 
                 {/* Font Size */}
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
-                    Font Size <span className="text-gray-500 normal-case">{readerSettings.fontSize}px</span>
+                  <label className="label-mono text-paper/40 mb-2 block">
+                    Font Size <span className="text-paper/40 normal-case">{readerSettings.fontSize}px</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateSettings({ fontSize: Math.max(14, readerSettings.fontSize - 1) })}
-                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                      className="w-8 h-8 rounded-sm bg-surface hover:bg-surface-hover text-paper/60 flex items-center justify-center transition-all text-sm font-bold"
                     >
                       -
                     </button>
@@ -366,11 +366,11 @@ export default function ReaderView({
                       step={1}
                       value={readerSettings.fontSize}
                       onChange={(e) => updateSettings({ fontSize: Number(e.target.value) })}
-                      className="flex-1 h-1 bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400"
+                      className="flex-1 h-1 bg-hairline rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gold"
                     />
                     <button
                       onClick={() => updateSettings({ fontSize: Math.min(24, readerSettings.fontSize + 1) })}
-                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                      className="w-8 h-8 rounded-sm bg-surface hover:bg-surface-hover text-paper/60 flex items-center justify-center transition-all text-sm font-bold"
                     >
                       +
                     </button>
@@ -379,13 +379,13 @@ export default function ReaderView({
 
                 {/* Line Spacing */}
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
-                    Line Spacing <span className="text-gray-500 normal-case">{readerSettings.lineSpacing.toFixed(1)}</span>
+                  <label className="label-mono text-paper/40 mb-2 block">
+                    Line Spacing <span className="text-paper/40 normal-case">{readerSettings.lineSpacing.toFixed(1)}</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateSettings({ lineSpacing: Math.max(1.4, Math.round((readerSettings.lineSpacing - 0.1) * 10) / 10) })}
-                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                      className="w-8 h-8 rounded-sm bg-surface hover:bg-surface-hover text-paper/60 flex items-center justify-center transition-all text-sm font-bold"
                     >
                       -
                     </button>
@@ -396,11 +396,11 @@ export default function ReaderView({
                       step={0.1}
                       value={readerSettings.lineSpacing}
                       onChange={(e) => updateSettings({ lineSpacing: Number(e.target.value) })}
-                      className="flex-1 h-1 bg-white/[0.08] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-400"
+                      className="flex-1 h-1 bg-hairline rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-gold"
                     />
                     <button
                       onClick={() => updateSettings({ lineSpacing: Math.min(2.4, Math.round((readerSettings.lineSpacing + 0.1) * 10) / 10) })}
-                      className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-gray-300 flex items-center justify-center transition-all text-sm font-bold"
+                      className="w-8 h-8 rounded-sm bg-surface hover:bg-surface-hover text-paper/60 flex items-center justify-center transition-all text-sm font-bold"
                     >
                       +
                     </button>
@@ -409,7 +409,7 @@ export default function ReaderView({
 
                 {/* Text Width */}
                 <div>
-                  <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2 block">
+                  <label className="label-mono text-paper/40 mb-2 block">
                     Text Width
                   </label>
                   <div className="grid grid-cols-3 gap-1.5">
@@ -417,10 +417,10 @@ export default function ReaderView({
                       <button
                         key={width}
                         onClick={() => updateSettings({ textWidth: width })}
-                        className={`px-3 py-2 rounded-lg text-xs font-medium capitalize transition-all ${
+                        className={`px-3 py-2 rounded-sm text-xs font-medium capitalize transition-all ${
                           readerSettings.textWidth === width
-                            ? "bg-purple-500/20 text-purple-300 ring-1 ring-purple-500/40"
-                            : "bg-white/[0.04] text-gray-300 hover:bg-white/[0.08]"
+                            ? "bg-gold/10 text-gold ring-1 ring-gold/30"
+                            : "bg-surface text-paper/60 hover:bg-surface-hover"
                         }`}
                       >
                         {width}
@@ -437,38 +437,38 @@ export default function ReaderView({
       <div className="flex">
         {/* Table of Contents Sidebar */}
         {showToc && (
-          <div ref={tocRef} className="w-72 border-r border-white/[0.06] max-h-[500px] overflow-y-auto shrink-0">
+          <div ref={tocRef} className="w-72 border-r border-hairline max-h-[500px] overflow-y-auto shrink-0 divide-y divide-hairline">
             {chapters.map((ch, i) => (
               <div
                 key={i}
                 ref={(el) => { chapterRefs.current[i] = el; }}
-                className={`flex items-center justify-between px-4 py-3.5 cursor-pointer border-b border-white/[0.03] transition-all ${
+                className={`flex items-center justify-between px-4 py-3.5 cursor-pointer transition-all ${
                   i === selectedChapter
-                    ? "bg-purple-500/10 border-l-2 border-l-purple-500"
-                    : "hover:bg-white/[0.03] border-l-2 border-l-transparent"
-                } ${i === currentChapterIndex && isPlaying ? "text-purple-300" : ""}`}
+                    ? "bg-gold/10 border-l-2 border-l-gold"
+                    : "hover:bg-surface border-l-2 border-l-transparent"
+                } ${i === currentChapterIndex && isPlaying ? "text-gold" : ""}`}
               >
                 <div className="flex-1 min-w-0" onClick={() => handleChapterClick(i)}>
                   <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-mono text-gray-600 shrink-0">
+                    <span className="label-mono text-gold shrink-0">
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <p className={`text-sm truncate ${i === selectedChapter ? "text-white font-medium" : "text-gray-300"}`}>
+                    <p className={`font-display text-base truncate ${i === selectedChapter ? "text-gold" : "text-paper/80"}`}>
                       {ch.title}
                     </p>
                   </div>
-                  <p className="text-xs text-gray-600 ml-7 mt-0.5">{ch.word_count.toLocaleString()} words</p>
+                  <p className="label-mono text-paper/40 ml-7 mt-0.5">{ch.word_count.toLocaleString()} words</p>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handlePlayChapter(i);
                   }}
-                  className="ml-2 p-2 rounded-lg hover:bg-purple-500/20 text-gray-500 hover:text-purple-300 transition-all"
+                  className="ml-2 p-2 rounded-sm hover:bg-gold/10 text-paper/40 hover:text-gold transition-all"
                   title={`Play chapter ${i + 1}`}
                 >
                   {i === currentChapterIndex && isPlaying ? (
-                    <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gold" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                     </svg>
                   ) : (
@@ -485,14 +485,14 @@ export default function ReaderView({
         {/* Reader Content */}
         <div className="flex-1 max-h-[500px] overflow-y-auto p-8 relative" id="reader-scroll-container">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-white">{chapter?.title}</h3>
+            <h3 className="font-display text-2xl text-paper">{chapter?.title}</h3>
             {searchQuery && matchCount > 0 && (
-              <span className="text-xs text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
+              <span className="label-mono text-gold bg-gold/10 px-2.5 py-1 rounded-full">
                 {matchCount} match{matchCount !== 1 ? "es" : ""} found
               </span>
             )}
             {searchQuery && matchCount === 0 && (
-              <span className="text-xs text-gray-500 bg-white/[0.04] px-2.5 py-1 rounded-full">
+              <span className="label-mono text-paper/40 bg-surface px-2.5 py-1 rounded-full">
                 No matches in this chapter
               </span>
             )}
@@ -500,8 +500,8 @@ export default function ReaderView({
 
           {/* Cross-chapter search results */}
           {searchQuery && matchCount === 0 && otherChapterMatches.length > 0 && (
-            <div className="mb-6 p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
-              <p className="text-xs text-amber-300 font-medium mb-2">
+            <div className="mb-6 p-4 rounded-sm bg-gold/5 border border-gold/30">
+              <p className="label-mono text-gold mb-2">
                 Found in other chapters:
               </p>
               <div className="flex flex-wrap gap-2">
@@ -512,7 +512,7 @@ export default function ReaderView({
                       setSelectedChapter(match.index);
                       setShowToc(false);
                     }}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100 transition-all"
+                    className="text-xs px-3 py-1.5 rounded-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all"
                   >
                     {match.title} ({match.count} match{match.count !== 1 ? "es" : ""})
                   </button>
@@ -545,8 +545,8 @@ export default function ReaderView({
                     <p
                       key={i}
                       ref={(el) => { paragraphRefs.current[i] = el; }}
-                      className={`mb-4 transition-colors duration-500 rounded-lg ${
-                        isActive ? "text-white bg-purple-500/5 -mx-2 px-2 py-1" : "text-gray-400"
+                      className={`mb-4 transition-colors duration-500 rounded-sm ${
+                        isActive ? "text-paper bg-gold/5 -mx-2 px-2 py-1" : "text-paper/60"
                       }`}
                     >
                       {renderHighlightedText(paragraph, isFirstMatch)}
@@ -556,7 +556,7 @@ export default function ReaderView({
               })()}
             </div>
           ) : (
-            <p className="text-gray-500 italic">Chapter text not available for this document.</p>
+            <p className="text-paper/40 font-serif italic">Chapter text not available for this document.</p>
           )}
 
           {/* Play from selection popup */}
@@ -565,10 +565,10 @@ export default function ReaderView({
               className="fixed z-50 transform -translate-x-1/2 -translate-y-full"
               style={{ left: confirmPosition.x, top: confirmPosition.y }}
             >
-              <div className="glass-strong rounded-xl shadow-2xl p-2.5 flex items-center gap-2">
+              <div className="bg-surface-hover border border-hairline-strong rounded-sm shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] p-2.5 flex items-center gap-2">
                 <button
                   onClick={handleConfirmPlay}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gold text-ink hover:bg-gold-soft rounded-sm text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                 >
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
@@ -580,7 +580,7 @@ export default function ReaderView({
                     setShowPlayConfirm(false);
                     window.getSelection()?.removeAllRanges();
                   }}
-                  className="px-3 py-2 text-gray-400 hover:text-white text-xs transition-colors rounded-lg hover:bg-white/[0.05]"
+                  className="px-3 py-2 text-paper/60 hover:text-paper text-xs transition-colors rounded-sm hover:bg-surface"
                 >
                   Cancel
                 </button>
@@ -591,24 +591,24 @@ export default function ReaderView({
       </div>
 
       {/* Chapter navigation footer */}
-      <div className="flex items-center justify-between px-5 py-4 border-t border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-4 border-t border-hairline">
         <button
           onClick={() => setSelectedChapter(Math.max(0, selectedChapter - 1))}
           disabled={selectedChapter === 0}
-          className="text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all group"
+          className="label-mono text-paper/60 hover:text-paper disabled:opacity-30 disabled:cursor-not-allowed transition-all group"
         >
           <span className="group-hover:-translate-x-0.5 inline-block transition-transform">←</span> Previous
         </button>
         <button
           onClick={() => handlePlayChapter(selectedChapter)}
-          className="px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl text-sm font-semibold hover:from-purple-500 hover:to-blue-500 transition-all hover:scale-105 active:scale-95"
+          className="px-5 py-2 bg-gold text-ink rounded-sm text-sm font-semibold hover:bg-gold-soft transition-all hover:scale-105 active:scale-95"
         >
           Play this chapter
         </button>
         <button
           onClick={() => setSelectedChapter(Math.min(chapters.length - 1, selectedChapter + 1))}
           disabled={selectedChapter === chapters.length - 1}
-          className="text-sm text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all group"
+          className="label-mono text-paper/60 hover:text-paper disabled:opacity-30 disabled:cursor-not-allowed transition-all group"
         >
           Next <span className="group-hover:translate-x-0.5 inline-block transition-transform">→</span>
         </button>

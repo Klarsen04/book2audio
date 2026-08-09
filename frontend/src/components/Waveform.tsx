@@ -14,7 +14,7 @@ export default function Waveform({ isPlaying }: Props) {
       {Array.from({ length: bars }).map((_, i) => (
         <motion.div
           key={i}
-          className="w-[3px] rounded-full bg-gradient-to-t from-purple-500 to-blue-400"
+          className="w-[3px] rounded-full bg-gold"
           animate={
             isPlaying
               ? {

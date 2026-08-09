@@ -74,7 +74,7 @@ async def get_voices():
 
 
 @app.get("/api/voices/preview/{voice_id}")
-async def preview_voice(voice_id: str):
+async def preview_voice(voice_id: str, text: str | None = None):
     import io
     import edge_tts
     from app.tts.edge import VOICES
@@ -83,7 +83,12 @@ async def preview_voice(voice_id: str):
     if not voice_info:
         raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
 
-    sample_text = "Here's a quick preview of how I sound reading your documents."
+    # Read the caller-supplied excerpt when provided (capped to keep previews
+    # short), otherwise fall back to a generic line.
+    if text and text.strip():
+        sample_text = text.strip()[:400]
+    else:
+        sample_text = "Here's a quick preview of how I sound reading your documents."
     try:
         communicate = edge_tts.Communicate(sample_text, voice_info["id"])
         audio_data = b""

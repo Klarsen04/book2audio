@@ -132,10 +132,10 @@ export default function FileUpload({ onUploadComplete }: Props) {
           <button
             key={tab.key}
             onClick={() => { setInputMode(tab.key); setError(null); }}
-            className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={`px-4 py-1.5 rounded-full label-mono transition-all ${
               inputMode === tab.key
-                ? "bg-purple-600/20 text-purple-300 border border-purple-500/30"
-                : "text-gray-400 border border-white/[0.06] hover:text-gray-200 hover:bg-white/[0.04]"
+                ? "bg-gold/10 text-gold border border-gold/30"
+                : "text-paper/60 border border-hairline hover:text-paper hover:bg-surface"
             }`}
           >
             {tab.label}
@@ -151,10 +151,10 @@ export default function FileUpload({ onUploadComplete }: Props) {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
-            className={`relative glass rounded-2xl p-16 text-center cursor-pointer transition-all duration-300 group ${
+            className={`relative bg-surface border border-hairline rounded-sm p-16 text-center cursor-pointer transition-all duration-300 group ${
               isDragging
-                ? "border-purple-500/50 bg-purple-500/5 scale-[1.01]"
-                : "hover:bg-white/[0.04] hover:border-white/10 hover:scale-[1.005]"
+                ? "border-gold/40 bg-gold/5 scale-[1.01]"
+                : "hover:bg-surface-hover hover:border-hairline-strong hover:scale-[1.005]"
             }`}
           >
             <input
@@ -173,18 +173,18 @@ export default function FileUpload({ onUploadComplete }: Props) {
               📚
             </motion.div>
 
-            <p className="text-lg text-gray-200 font-medium mb-2">
+            <p className="text-lg text-paper font-display mb-2">
               Drag & drop your book here
             </p>
-            <p className="text-sm text-gray-500">
-              or <span className="text-purple-400 group-hover:text-purple-300 transition-colors">browse files</span>
+            <p className="text-sm text-paper/40 font-serif">
+              or <span className="text-gold group-hover:text-gold-soft transition-colors">browse files</span>
             </p>
 
             <div className="flex items-center justify-center gap-3 mt-6">
               {["PDF", "EPUB", "DOCX", "TXT"].map((fmt) => (
                 <span
                   key={fmt}
-                  className="px-3 py-1 text-xs font-medium text-gray-500 bg-white/[0.04] rounded-full border border-white/[0.06]"
+                  className="px-3 py-1 label-mono text-paper/40 bg-surface rounded-full border border-hairline"
                 >
                   {fmt}
                 </span>
@@ -196,25 +196,25 @@ export default function FileUpload({ onUploadComplete }: Props) {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-strong rounded-2xl p-5 flex items-center justify-between"
+              className="bg-surface-hover border border-hairline-strong rounded-sm p-5 flex items-center justify-between"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-2xl">
+                <div className="w-12 h-12 rounded-sm bg-gold/10 flex items-center justify-center text-2xl">
                   📄
                 </div>
                 <div>
-                  <p className="text-gray-200 font-medium text-sm">{file.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{formatSize(file.size)}</p>
+                  <p className="text-paper font-serif text-sm">{file.name}</p>
+                  <p className="label-mono text-paper/40 mt-0.5">{formatSize(file.size)}</p>
                 </div>
               </div>
               <button
                 onClick={handleUpload}
                 disabled={isUploading}
-                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
+                className="px-6 py-2.5 rounded-full bg-gold text-ink font-semibold text-sm hover:bg-gold-soft disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
               >
                 {isUploading ? (
                   <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    <div className="w-4 h-4 rounded-full border-2 border-ink/30 border-t-ink animate-spin" />
                     {uploadProgress > 0 && uploadProgress < 100
                       ? `Uploading ${uploadProgress}%`
                       : "Analyzing..."}
@@ -230,23 +230,23 @@ export default function FileUpload({ onUploadComplete }: Props) {
 
       {/* URL input mode */}
       {inputMode === "url" && (
-        <div className="glass rounded-2xl p-8 space-y-4">
+        <div className="bg-surface border border-hairline rounded-sm p-8 space-y-4">
           <div className="flex gap-3">
             <input
               type="url"
               value={urlValue}
               onChange={(e) => setUrlValue(e.target.value)}
               placeholder="Paste a URL to any web article, PDF, or page..."
-              className="flex-1 px-5 py-3 bg-white/[0.03] border border-white/[0.06] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 focus:outline-none transition-all"
+              className="flex-1 px-5 py-3 bg-surface border border-hairline rounded-sm text-paper text-sm placeholder-paper/40 focus:border-gold/40 focus:ring-1 focus:ring-gold/20 focus:outline-none transition-all"
             />
             <button
               onClick={handleUrlSubmit}
               disabled={isUploading || !urlValue.trim()}
-              className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98] whitespace-nowrap"
+              className="px-6 py-3 rounded-full bg-gold text-ink font-semibold text-sm hover:bg-gold-soft disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98] whitespace-nowrap"
             >
               {isUploading ? (
                 <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  <div className="w-4 h-4 rounded-full border-2 border-ink/30 border-t-ink animate-spin" />
                   Fetching...
                 </span>
               ) : (
@@ -259,23 +259,23 @@ export default function FileUpload({ onUploadComplete }: Props) {
 
       {/* Text input mode */}
       {inputMode === "text" && (
-        <div className="glass rounded-2xl p-8 space-y-4">
+        <div className="bg-surface border border-hairline rounded-sm p-8 space-y-4">
           <textarea
             value={textValue}
             onChange={(e) => setTextValue(e.target.value)}
             placeholder="Paste or type text here..."
             rows={8}
-            className="w-full px-5 py-4 bg-white/[0.03] border border-white/[0.06] rounded-xl text-white text-sm placeholder-gray-500 focus:border-purple-500/40 focus:ring-1 focus:ring-purple-500/20 focus:outline-none transition-all resize-none"
+            className="w-full px-5 py-4 bg-surface border border-hairline rounded-sm text-paper text-sm placeholder-paper/40 focus:border-gold/40 focus:ring-1 focus:ring-gold/20 focus:outline-none transition-all resize-none"
           />
           <div className="flex justify-end">
             <button
               onClick={handleTextSubmit}
               disabled={isUploading || !textValue.trim()}
-              className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 font-semibold text-sm hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
+              className="px-6 py-2.5 rounded-full bg-gold text-ink font-semibold text-sm hover:bg-gold-soft disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 active:scale-[0.98]"
             >
               {isUploading ? (
                 <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  <div className="w-4 h-4 rounded-full border-2 border-ink/30 border-t-ink animate-spin" />
                   Converting...
                 </span>
               ) : (
@@ -290,7 +290,7 @@ export default function FileUpload({ onUploadComplete }: Props) {
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-300 text-sm"
+          className="bg-burgundy/10 border border-burgundy/30 rounded-sm p-4 text-burgundy-soft text-sm font-serif"
         >
           {error}
         </motion.div>

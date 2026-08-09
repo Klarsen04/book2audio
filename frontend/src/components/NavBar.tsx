@@ -26,27 +26,27 @@ export default function NavBar() {
   const isActive = (path: string) => pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-xl bg-black/60 border-b border-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
+    <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#16130f]/85 border-b border-hairline">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <Link href="/library" className="text-lg font-bold gradient-text">
-            Book2Audio
+          <Link href="/library" className="font-display text-lg font-bold text-paper">
+            Book<span className="text-gold">2</span>Audio
           </Link>
           <div className="hidden sm:flex gap-1 relative">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                className={`relative px-4 py-2 rounded-sm label-mono transition-colors duration-200 ${
                   isActive(link.href)
-                    ? "text-white"
-                    : "text-gray-400 hover:text-white"
+                    ? "text-gold"
+                    : "text-paper/50 hover:text-paper"
                 }`}
               >
                 {isActive(link.href) && (
                   <motion.div
                     layoutId="nav-indicator"
-                    className="absolute inset-0 rounded-lg bg-white/[0.08] border border-white/[0.06]"
+                    className="absolute inset-0 rounded-sm bg-gold/10 border border-gold/25"
                     transition={{ type: "spring", stiffness: 350, damping: 30 }}
                   />
                 )}
@@ -60,16 +60,16 @@ export default function NavBar() {
           {user && (
             <>
               <div className="hidden sm:flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold">
+                <div className="w-7 h-7 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center label-mono text-gold">
                   {(user.name || user.email || "U")[0].toUpperCase()}
                 </div>
-                <span className="text-sm text-gray-400">
+                <span className="font-serif text-sm text-paper/60">
                   {user.name || user.email}
                 </span>
               </div>
               <button
                 onClick={handleLogout}
-                className="hidden sm:block text-sm text-gray-500 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/[0.04]"
+                className="hidden sm:block font-serif text-sm text-paper/50 hover:text-paper transition-colors px-3 py-1.5 rounded-sm hover:bg-surface"
               >
                 Sign out
               </button>
@@ -79,7 +79,7 @@ export default function NavBar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="sm:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
+            className="sm:hidden p-2 rounded-sm text-paper/60 hover:text-paper hover:bg-surface transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileOpen ? (
@@ -100,7 +100,7 @@ export default function NavBar() {
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="sm:hidden border-t border-white/[0.06] overflow-hidden"
+            className="sm:hidden border-t border-hairline overflow-hidden"
           >
             <div className="px-6 py-4 space-y-2">
               {NAV_LINKS.map((link) => (
@@ -108,10 +108,10 @@ export default function NavBar() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  className={`block px-4 py-2.5 rounded-sm label-mono transition-all ${
                     isActive(link.href)
-                      ? "bg-white/[0.08] text-white"
-                      : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                      ? "bg-gold/10 text-gold"
+                      : "text-paper/50 hover:text-paper hover:bg-surface"
                   }`}
                 >
                   {link.label}
@@ -120,7 +120,7 @@ export default function NavBar() {
               {user && (
                 <button
                   onClick={() => { handleLogout(); setMobileOpen(false); }}
-                  className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/[0.04] transition-all"
+                  className="w-full text-left px-4 py-2.5 rounded-sm label-mono text-paper/50 hover:text-paper hover:bg-surface transition-all"
                 >
                   Sign out
                 </button>

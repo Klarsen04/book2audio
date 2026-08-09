@@ -41,7 +41,7 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
     <div className="relative" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all font-semibold"
+        className="label-mono px-3 py-1.5 rounded-sm text-gold hover:bg-surface-hover transition-all"
         title="Playback speed"
       >
         {speed}x
@@ -54,10 +54,10 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="fixed z-[100] bg-[#1a1a1a] border border-white/[0.1] rounded-xl p-3 shadow-2xl"
+            className="fixed z-[100] bg-surface-hover border border-hairline-strong rounded-sm p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]"
             style={{ top: pos.top, right: pos.right }}
           >
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-medium">Playback Speed</p>
+            <p className="label-mono text-paper/40 mb-2">Playback Speed</p>
             <div className="grid grid-cols-4 gap-1.5 w-[200px]">
               {SPEEDS.map((s) => (
                 <button
@@ -66,10 +66,10 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
                     onChange(s);
                     setIsOpen(false);
                   }}
-                  className={`px-2 py-1.5 text-xs rounded-lg font-medium transition-all whitespace-nowrap ${
+                  className={`label-mono px-2 py-1.5 rounded-sm transition-all whitespace-nowrap ${
                     speed === s
-                      ? "bg-purple-600/30 text-purple-300 border border-purple-500/30"
-                      : "bg-white/[0.04] hover:bg-white/[0.1] text-gray-300 border border-white/[0.06]"
+                      ? "bg-gold/10 text-gold border border-gold/30"
+                      : "bg-surface hover:bg-surface-hover text-paper/60 border border-hairline"
                   }`}
                 >
                   {s}x

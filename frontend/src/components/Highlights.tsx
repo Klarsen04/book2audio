@@ -73,10 +73,10 @@ export default function HighlightsPanel({ docId, onHighlightClick }: Props) {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-all ${
           isOpen
-            ? "bg-yellow-600/20 text-yellow-300 border border-yellow-500/30"
-            : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+            ? "bg-gold/10 text-gold border border-gold/30"
+            : "text-paper/60 hover:text-paper hover:bg-surface-hover"
         }`}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,7 +84,7 @@ export default function HighlightsPanel({ docId, onHighlightClick }: Props) {
         </svg>
         Highlights
         {highlights.length > 0 && (
-          <span className="bg-white/[0.1] px-1.5 rounded-full">{highlights.length}</span>
+          <span className="bg-surface-hover px-1.5 rounded-full">{highlights.length}</span>
         )}
       </button>
 
@@ -94,42 +94,42 @@ export default function HighlightsPanel({ docId, onHighlightClick }: Props) {
             initial={{ opacity: 0, y: 5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 5, scale: 0.95 }}
-            className="absolute top-full mt-2 right-0 w-80 glass-strong rounded-xl shadow-2xl overflow-hidden z-50"
+            className="absolute top-full mt-2 right-0 w-80 bg-surface-hover border border-hairline-strong rounded-sm shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)] overflow-hidden z-50"
           >
-            <div className="p-3 border-b border-white/[0.06] flex items-center justify-between">
-              <p className="text-xs font-medium text-gray-300">
+            <div className="p-3 border-b border-hairline flex items-center justify-between">
+              <p className="label-mono text-paper/40">
                 {highlights.length} highlight{highlights.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <div className="max-h-64 overflow-y-auto">
+            <div className="max-h-64 overflow-y-auto divide-y divide-hairline">
               {highlights.length === 0 ? (
-                <p className="p-4 text-xs text-gray-500 text-center">
+                <p className="p-4 text-xs text-paper/40 text-center">
                   Select text in the reader to highlight it.
                 </p>
               ) : (
                 highlights.map((h) => (
                   <div
                     key={h.id}
-                    className="p-3 border-b border-white/[0.03] hover:bg-white/[0.03] cursor-pointer group"
+                    className="p-3 hover:bg-surface cursor-pointer group"
                     onClick={() => onHighlightClick?.(h)}
                   >
                     <p
-                      className="text-xs text-gray-300 line-clamp-2 rounded px-1"
+                      className="text-xs text-paper/80 line-clamp-2 rounded-sm px-1"
                       style={{ backgroundColor: h.color }}
                     >
                       {h.text}
                     </p>
                     {h.note && (
-                      <p className="text-[10px] text-gray-500 mt-1 italic">{h.note}</p>
+                      <p className="text-[10px] text-paper/40 mt-1 italic">{h.note}</p>
                     )}
                     <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[10px] text-gray-600">Ch. {h.chapterIndex + 1}</span>
+                      <span className="label-mono text-gold">Ch. {h.chapterIndex + 1}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           removeHighlight(h.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                        className="opacity-0 group-hover:opacity-100 text-paper/40 hover:text-burgundy-soft transition-all"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
