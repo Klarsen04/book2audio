@@ -9,13 +9,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import api from '../lib/api';
+import { theme } from '../lib/theme';
 
 interface Document {
   id: string;
   title: string;
   format: string;
   status: string;
-  duration?: number;
+  audio_duration?: number;
+  total_word_count?: number;
   created_at: string;
 }
 
@@ -31,9 +33,9 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
   const fetchLibrary = useCallback(async () => {
     try {
       const response = await api.get('/api/library');
-      setDocuments(response.data.documents || response.data || []);
+      setDocuments(response.data.documents || []);
     } catch (error) {
-      console.error('Failed to fetch library:', error);
+      // No session yet / offline — just show the empty state.
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -50,66 +52,46 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
   }, [fetchLibrary]);
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return '--:--';
+    if (!seconds) return '';
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     if (hrs > 0) return `${hrs}h ${mins}m`;
-    return `${mins}m`;
+    return `${mins || 1}m`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'ready':
-        return '#10b981';
-      case 'processing':
-      case 'converting':
-        return '#f59e0b';
-      case 'failed':
-      case 'error':
-        return '#ef4444';
-      default:
-        return '#6b7280';
-    }
-  };
+  const statusColor = (status: string) =>
+    ['completed', 'ready'].includes(status.toLowerCase())
+      ? theme.gold
+      : ['converting', 'processing'].includes(status.toLowerCase())
+      ? theme.goldSoft
+      : ['error', 'failed'].includes(status.toLowerCase())
+      ? theme.burgundy
+      : theme.paper40;
 
-  const getFormatBadgeColor = (format: string) => {
-    switch (format.toLowerCase()) {
-      case 'pdf':
-        return '#ef4444';
-      case 'epub':
-        return '#3b82f6';
-      case 'txt':
-        return '#6b7280';
-      default:
-        return '#7c3aed';
-    }
-  };
-
-  const renderItem = ({ item }: { item: Document }) => (
-    <TouchableOpacity style={styles.card} onPress={() => onSelectDocument(item)}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.title} numberOfLines={2}>
+  const renderItem = ({ item, index }: { item: Document; index: number }) => (
+    <TouchableOpacity style={styles.row} onPress={() => onSelectDocument(item)} activeOpacity={0.7}>
+      <Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text>
+      <View style={styles.rowBody}>
+        <Text style={styles.title} numberOfLines={1}>
           {item.title}
         </Text>
-        <View style={[styles.formatBadge, { backgroundColor: getFormatBadgeColor(item.format) }]}>
-          <Text style={styles.formatText}>{item.format.toUpperCase()}</Text>
-        </View>
+        <Text style={styles.meta}>
+          {item.format?.toUpperCase()} ·{' '}
+          <Text style={{ color: statusColor(item.status) }}>{item.status}</Text>
+        </Text>
       </View>
-      <View style={styles.cardFooter}>
-        <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
-          <Text style={styles.statusText}>{item.status}</Text>
-        </View>
-        <Text style={styles.duration}>{formatDuration(item.duration)}</Text>
-      </View>
+      <Text style={styles.duration}>
+        {item.status === 'completed'
+          ? formatDuration(item.audio_duration)
+          : `${(item.total_word_count || 0).toLocaleString()} w`}
+      </Text>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#7c3aed" />
+        <ActivityIndicator size="large" color={theme.gold} />
       </View>
     );
   }
@@ -121,19 +103,15 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        ItemSeparatorComponent={() => <View style={styles.sep} />}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#7c3aed"
-            colors={['#7c3aed']}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>No books yet</Text>
+            <Text style={styles.emptyTitle}>Your library is empty</Text>
             <Text style={styles.emptySubtitle}>
-              Upload a book to get started with audio conversion
+              Head to Convert to turn your first document into audio.
             </Text>
           </View>
         }
@@ -143,88 +121,29 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a2e',
-  },
-  list: {
-    padding: 16,
-    gap: 12,
-  },
-  card: {
-    backgroundColor: '#2a2a4a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#3a3a5a',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    flex: 1,
-    marginRight: 12,
-  },
-  formatBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  formatText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    color: '#aaa',
+  container: { flex: 1, backgroundColor: theme.bg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.bg },
+  list: { padding: 16 },
+  sep: { height: 1, backgroundColor: theme.hairline },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 14 },
+  index: {
+    color: theme.gold,
     fontSize: 13,
-    textTransform: 'capitalize',
+    letterSpacing: 1,
+    width: 26,
+    fontVariant: ['tabular-nums'],
   },
-  duration: {
-    color: '#aaa',
-    fontSize: 13,
+  rowBody: { flex: 1 },
+  title: { color: theme.paper, fontSize: 17, fontWeight: '600' },
+  meta: {
+    color: theme.paper40,
+    fontSize: 12,
+    marginTop: 3,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  empty: {
-    alignItems: 'center',
-    paddingTop: 80,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-  },
+  duration: { color: theme.paper40, fontSize: 12, letterSpacing: 0.5 },
+  empty: { alignItems: 'center', paddingTop: 100, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 22, fontWeight: '700', color: theme.paper, marginBottom: 8 },
+  emptySubtitle: { fontSize: 15, color: theme.paper60, textAlign: 'center', lineHeight: 22 },
 });

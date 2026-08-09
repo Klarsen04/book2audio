@@ -61,7 +61,8 @@ async def restore_session(req: RestoreRequest, response: Response):
 
     token = create_session_token(row["id"])
     set_session_cookie(response, token)
-    return {"ok": True}
+    # Also return the token so native mobile (no cookie jar) can store it.
+    return {"ok": True, "session_token": token}
 
 
 @router.post("/signout")

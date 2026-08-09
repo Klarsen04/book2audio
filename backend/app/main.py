@@ -31,7 +31,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Restore-Key"],
+    expose_headers=["X-Restore-Key", "X-Session-Token"],
 )
 
 
@@ -46,6 +46,9 @@ async def attach_new_session(request: Request, call_next):
     token = getattr(request.state, "new_session_token", None)
     if token:
         set_session_cookie(response, token)
+        # Native mobile can't read the HTTP-only cookie, so also surface the
+        # session token in a header for it to store and send as a Bearer.
+        response.headers["X-Session-Token"] = token
         key = getattr(request.state, "new_restore_key", None)
         if key:
             response.headers["X-Restore-Key"] = key

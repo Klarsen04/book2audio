@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useState } from 'react';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
-import { getAuthToken } from '../lib/api';
-import LoginScreen from '../screens/LoginScreen';
 import LibraryScreen from '../screens/LibraryScreen';
 import PlayerScreen from '../screens/PlayerScreen';
 import UploadScreen from '../screens/UploadScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import { theme } from '../lib/theme';
 
 const Tab = createBottomTabNavigator();
 
@@ -16,32 +15,25 @@ interface Document {
   title: string;
   format: string;
   status: string;
-  duration?: number;
+  audio_duration?: number;
   created_at: string;
 }
 
+const navTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: theme.bg,
+    card: theme.bg,
+    text: theme.paper,
+    border: theme.hairline,
+    primary: theme.gold,
+  },
+};
+
 export default function Navigation() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  // No auth gate — anyone can use the app; a session is minted on first upload.
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    const token = await getAuthToken();
-    setIsAuthenticated(!!token);
-    setCheckingAuth(false);
-  };
-
-  if (checkingAuth) {
-    return null;
-  }
-
-  if (!isAuthenticated) {
-    return <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />;
-  }
 
   if (selectedDocument) {
     return (
@@ -53,24 +45,25 @@ export default function Navigation() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       <Tab.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#1a1a2e',
+            backgroundColor: theme.bg,
             elevation: 0,
             shadowOpacity: 0,
             borderBottomWidth: 1,
-            borderBottomColor: '#2a2a4a',
+            borderBottomColor: theme.hairline,
           },
-          headerTintColor: '#fff',
+          headerTitleStyle: { color: theme.paper, fontWeight: '700' },
+          headerTintColor: theme.paper,
           tabBarStyle: {
-            backgroundColor: '#1a1a2e',
-            borderTopColor: '#2a2a4a',
+            backgroundColor: theme.bg,
+            borderTopColor: theme.hairline,
             borderTopWidth: 1,
           },
-          tabBarActiveTintColor: '#7c3aed',
-          tabBarInactiveTintColor: '#888',
+          tabBarActiveTintColor: theme.gold,
+          tabBarInactiveTintColor: theme.paper40,
         }}
       >
         <Tab.Screen
@@ -84,7 +77,7 @@ export default function Navigation() {
           {() => <LibraryScreen onSelectDocument={setSelectedDocument} />}
         </Tab.Screen>
         <Tab.Screen
-          name="Upload"
+          name="Convert"
           component={UploadScreen}
           options={{
             tabBarIcon: ({ color, size }) => (
@@ -94,14 +87,13 @@ export default function Navigation() {
         />
         <Tab.Screen
           name="Settings"
+          component={SettingsScreen}
           options={{
             tabBarIcon: ({ color, size }) => (
               <Text style={{ color, fontSize: size }}>&#x2699;</Text>
             ),
           }}
-        >
-          {() => <SettingsScreen onLogout={() => setIsAuthenticated(false)} />}
-        </Tab.Screen>
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );

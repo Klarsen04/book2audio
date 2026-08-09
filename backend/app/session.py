@@ -100,9 +100,23 @@ def _create_guest_user() -> tuple[str, str]:
     raise HTTPException(status_code=500, detail="Could not create session")
 
 
+def _token_from_request(request: Request) -> str | None:
+    """
+    Session token from the cookie (web) OR an `Authorization: Bearer <token>`
+    header (native mobile, where cookies aren't reliably persisted).
+    """
+    cookie = request.cookies.get(SESSION_COOKIE)
+    if cookie:
+        return cookie
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return None
+
+
 def _resolve_existing(request: Request) -> dict | None:
-    """Return the user for a valid session cookie, else None. Never mints."""
-    token = request.cookies.get(SESSION_COOKIE)
+    """Return the user for a valid session token, else None. Never mints."""
+    token = _token_from_request(request)
     if not token:
         return None
     user_id = verify_session_token(token)

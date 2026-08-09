@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Audio } from 'expo-av';
-import api from '../lib/api';
+import api, { audioUrl, getSessionToken } from '../lib/api';
 
 interface Chapter {
   id: string;
@@ -56,9 +56,14 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
         staysActiveInBackground: true,
       });
 
+      // Send the session token as a Bearer since expo-av can't read our cookie.
+      const authToken = await getSessionToken();
       const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: `${api.defaults.baseURL}/api/audio/${document.id}/stream` },
-        { shouldPlay: false },
+        {
+          uri: audioUrl(document.id),
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        },
+        { shouldPlay: false, rate: playbackSpeed, shouldCorrectPitch: true },
         onPlaybackStatusUpdate
       );
       setSound(newSound);
@@ -71,8 +76,16 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
 
   const fetchChapters = async () => {
     try {
-      const response = await api.get(`/api/documents/${document.id}/chapters`);
-      setChapters(response.data.chapters || []);
+      // Chapters (with start_time) come from the document record itself.
+      const response = await api.get(`/api/library/${document.id}`);
+      const raw = response.data.document?.chapters || [];
+      const mapped: Chapter[] = raw.map((ch: any, i: number) => ({
+        id: String(i),
+        title: ch.title,
+        startTime: ch.start_time ?? 0,
+        endTime: raw[i + 1]?.start_time ?? Number.MAX_SAFE_INTEGER,
+      }));
+      setChapters(mapped);
     } catch (error) {
       console.error('Failed to fetch chapters:', error);
     }
@@ -145,7 +158,7 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#7c3aed" />
+        <ActivityIndicator size="large" color="#B45309" />
         <Text style={styles.loadingText}>Loading audio...</Text>
       </View>
     );
@@ -242,16 +255,16 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#16130f',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#16130f',
   },
   loadingText: {
-    color: '#aaa',
+    color: 'rgba(244,241,234,0.62)',
     marginTop: 16,
     fontSize: 14,
   },
@@ -267,11 +280,11 @@ const styles = StyleSheet.create({
     width: 60,
   },
   backText: {
-    color: '#7c3aed',
+    color: '#B45309',
     fontSize: 16,
   },
   headerTitle: {
-    color: '#fff',
+    color: '#f4f1ea',
     fontSize: 16,
     fontWeight: '600',
     flex: 1,
@@ -285,13 +298,13 @@ const styles = StyleSheet.create({
   documentTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#f4f1ea',
     textAlign: 'center',
     marginBottom: 8,
   },
   chapterTitle: {
     fontSize: 14,
-    color: '#aaa',
+    color: 'rgba(244,241,234,0.62)',
     textAlign: 'center',
   },
   progressContainer: {
@@ -300,13 +313,13 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#3a3a5a',
+    backgroundColor: '#2a2723',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#B45309',
     borderRadius: 2,
   },
   timeRow: {
@@ -315,7 +328,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   timeText: {
-    color: '#888',
+    color: 'rgba(244,241,234,0.42)',
     fontSize: 12,
   },
   controls: {
@@ -333,7 +346,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   speedText: {
-    color: '#7c3aed',
+    color: '#B45309',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -341,12 +354,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#2a2a4a',
+    backgroundColor: '#211e1a',
     justifyContent: 'center',
     alignItems: 'center',
   },
   skipText: {
-    color: '#fff',
+    color: '#f4f1ea',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -354,12 +367,12 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#7c3aed',
+    backgroundColor: '#B45309',
     justifyContent: 'center',
     alignItems: 'center',
   },
   playText: {
-    color: '#fff',
+    color: '#f4f1ea',
     fontSize: 24,
   },
   chaptersSection: {
@@ -367,7 +380,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   chaptersTitle: {
-    color: '#fff',
+    color: '#f4f1ea',
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
@@ -385,20 +398,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   chapterItemActive: {
-    backgroundColor: '#2a2a4a',
+    backgroundColor: '#211e1a',
   },
   chapterItemText: {
-    color: '#ccc',
+    color: '#f4f1ea',
     fontSize: 14,
     flex: 1,
     marginRight: 12,
   },
   chapterItemTextActive: {
-    color: '#7c3aed',
+    color: '#B45309',
     fontWeight: '600',
   },
   chapterTime: {
-    color: '#888',
+    color: 'rgba(244,241,234,0.42)',
     fontSize: 12,
   },
 });
