@@ -135,15 +135,13 @@ export default function ArtifactScene() {
 
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <Link
-              href="/register"
+              href="/convert"
               className="group inline-flex items-center gap-2 rounded-full bg-gold px-7 py-3.5 font-display text-lg text-ink transition-transform hover:scale-[1.02] active:scale-95"
             >
               Turn your first page
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </Link>
-            <Link href="/login" className="font-serif text-paper/60 underline-offset-4 hover:text-paper hover:underline">
-              Sign in
-            </Link>
+            <span className="font-serif text-sm text-paper/50">No sign-up — just upload.</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth.dependencies import get_current_user
+from app.session import optional_session
 from app.database import get_db
 from app.models import PlaybackPositionRequest
 
@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/playback", tags=["playback"])
 
 
 @router.get("/{doc_id}/position")
-async def get_position(doc_id: str, user: dict = Depends(get_current_user)):
+async def get_position(doc_id: str, user: dict = Depends(optional_session)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT position FROM playback_positions WHERE user_id = ? AND document_id = ?",
@@ -19,7 +19,7 @@ async def get_position(doc_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.put("/{doc_id}/position")
-async def save_position(doc_id: str, req: PlaybackPositionRequest, user: dict = Depends(get_current_user)):
+async def save_position(doc_id: str, req: PlaybackPositionRequest, user: dict = Depends(optional_session)):
     with get_db() as conn:
         doc = conn.execute(
             "SELECT id FROM documents WHERE id = ? AND user_id = ?", (doc_id, user["id"])

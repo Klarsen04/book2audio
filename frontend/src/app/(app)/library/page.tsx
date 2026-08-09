@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import LibraryCard from "@/components/LibraryCard";
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedCounter from "@/components/AnimatedCounter";
+import SaveKeyBanner from "@/components/SaveKeyBanner";
 
 interface Document {
   id: string;
@@ -51,6 +52,27 @@ export default function LibraryPage() {
   const [documentOrder, setDocumentOrder] = useState<string[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ type: "collection" | "document"; id: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // Download the whole library as one .b2a file (audio + metadata).
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await api.get("/api/export", { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "book2audio-library.b2a";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // best-effort; export is optional
+    } finally {
+      setExporting(false);
+    }
+  }, []);
 
   // Load document order from localStorage
   useEffect(() => {
@@ -556,6 +578,9 @@ export default function LibraryPage() {
 
       {/* MAIN CONTENT */}
       <main className="flex-1 min-w-0">
+        {/* Save-your-key banner (shows once, until the user confirms saved) */}
+        <SaveKeyBanner />
+
         {/* Header row */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -647,6 +672,18 @@ export default function LibraryPage() {
                 className="w-44 pl-9 pr-3 py-2 bg-surface border border-hairline rounded-sm text-paper text-sm placeholder-paper/40 focus:border-gold/30 focus:ring-1 focus:ring-gold/20 focus:outline-none transition-all"
               />
             </div>
+
+            {/* Export whole library */}
+            {documents.length > 0 && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                title="Download all your audiobooks + metadata as one file you can keep and re-import"
+                className="label-mono px-4 py-2 rounded-sm border border-hairline text-paper/70 hover:border-gold/40 hover:text-gold transition-all disabled:opacity-50"
+              >
+                {exporting ? "Exporting…" : "⬇ Export"}
+              </button>
+            )}
 
             {/* Add new */}
             <Link

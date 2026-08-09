@@ -1,23 +1,5 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
-
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    name: str
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    name: Optional[str]
-    avatar_url: Optional[str]
 
 
 class DocumentResponse(BaseModel):

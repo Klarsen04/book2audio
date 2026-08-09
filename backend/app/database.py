@@ -4,8 +4,25 @@ from contextlib import contextmanager
 
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "./data/book2audio.db")
 
+# When TURSO_DATABASE_URL (libsql://...) + TURSO_AUTH_TOKEN are set, the DB is a
+# hosted libSQL (Turso) instance — persistent across free-tier redeploys. The
+# libsql client mirrors the sqlite3 API (Row factory, execute, executescript),
+# so the ~75 raw-SQL call sites keep working unchanged. Without them, we use a
+# local sqlite3 file exactly as before.
+TURSO_URL = os.environ.get("TURSO_DATABASE_URL")
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+USE_TURSO = bool(TURSO_URL)
 
-def get_connection() -> sqlite3.Connection:
+
+def get_connection():
+    if USE_TURSO:
+        import libsql_experimental as libsql
+
+        conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -32,12 +49,13 @@ def init_db():
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
-                email TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE,
                 password_hash TEXT,
                 name TEXT,
                 avatar_url TEXT,
-                auth_provider TEXT NOT NULL DEFAULT 'email',
+                auth_provider TEXT NOT NULL DEFAULT 'guest',
                 google_id TEXT UNIQUE,
+                restore_key_hash TEXT UNIQUE,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
@@ -78,3 +96,11 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id);
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
         """)
+
+        # --- Lightweight migrations for pre-existing databases ---
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "restore_key_hash" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN restore_key_hash TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_restore_key ON users(restore_key_hash)"
+            )

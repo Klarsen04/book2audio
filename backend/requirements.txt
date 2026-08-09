@@ -15,4 +15,5 @@ certifi>=2024.7.4
 edge-tts>=7.0.0
 gTTS>=2.5.0
 defusedxml>=0.7.0
-email-validator>=2.0.0
+# Optional persistent DB (Turso/libSQL). Only imported when TURSO_DATABASE_URL is set.
+libsql-experimental>=0.0.37

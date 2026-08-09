@@ -8,17 +8,28 @@ services:
     envVars:
       - key: TTS_PROVIDER
         value: edge
+      # Signs the session cookie. Keep STABLE across deploys (see
+      # DEPLOYMENT_PERSISTENCE.md) — generateValue is fine as long as Render
+      # keeps it, which it does after first deploy.
       - key: JWT_SECRET
         generateValue: true
-      - key: FRONTEND_URL
-        sync: false
       - key: ALLOWED_ORIGINS
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: GOOGLE_REDIRECT_URI
         sync: false
       - key: DATABASE_PATH
         value: ./data/book2audio.db
+      # --- Persistent storage (optional; see DEPLOYMENT_PERSISTENCE.md) ---
+      # Set these to survive free-tier redeploys. Unset = local ephemeral disk.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: AUDIO_BUCKET
+        sync: false
+      - key: AUDIO_S3_ENDPOINT
+        sync: false
+      - key: AUDIO_S3_KEY_ID
+        sync: false
+      - key: AUDIO_S3_SECRET_KEY
+        sync: false
+      - key: AUDIO_S3_REGION
+        sync: false

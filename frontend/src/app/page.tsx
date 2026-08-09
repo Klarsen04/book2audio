@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import SmoothScroll from "@/components/motion/SmoothScroll";
 import TransformStage from "@/components/home/TransformStage";
 import ArtifactScene from "@/components/home/ArtifactScene";
 import WaveCanvas from "@/components/motion/WaveCanvas";
+import RestoreDialog from "@/components/RestoreDialog";
 
 /* ------------------------------------------------------------------ */
 /* Editorial masthead — gains a backdrop once past the hero           */
 /* ------------------------------------------------------------------ */
-function Masthead() {
+function Masthead({ onRestore }: { onRestore: () => void }) {
   const [solid, setSolid] = useState(false);
   useEffect(() => {
     const onScroll = () => setSolid(window.scrollY > window.innerHeight * 0.6);
@@ -31,11 +30,14 @@ function Masthead() {
           Book<span className="text-gold">2</span>Audio
         </span>
         <div className="flex items-center gap-6">
-          <Link href="/login" className="font-serif text-sm text-paper/60 transition-colors hover:text-paper">
-            Sign in
-          </Link>
+          <button
+            onClick={onRestore}
+            className="font-serif text-sm text-paper/60 transition-colors hover:text-paper"
+          >
+            Restore session
+          </button>
           <Link
-            href="/register"
+            href="/convert"
             className="label-mono rounded-full border border-gold/40 px-5 py-2 text-gold transition-colors hover:bg-gold/10"
           >
             Get started
@@ -359,20 +361,13 @@ function SectionShell({
 /* Page                                                               */
 /* ------------------------------------------------------------------ */
 export default function Home() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading && user) router.replace("/library");
-  }, [user, loading, router]);
-
-  if (loading) return null;
-  if (user) return null;
+  const [restoreOpen, setRestoreOpen] = useState(false);
 
   return (
     <SmoothScroll>
       <div className="relative min-h-screen overflow-x-hidden bg-[#16130f]">
-        <Masthead />
+        <Masthead onRestore={() => setRestoreOpen(true)} />
+        <RestoreDialog open={restoreOpen} onClose={() => setRestoreOpen(false)} />
 
         {/* SCENES 1–5: the cinematic transformation (pinned, scrubbed) */}
         <TransformStage />
@@ -557,10 +552,10 @@ export default function Home() {
               Give your library a voice.
             </h2>
             <p className="mx-auto mt-5 max-w-xl font-serif text-lg text-paper/60">
-              Upload your first document and have an audiobook in minutes. No credit card, no catch.
+              Upload your first document and have an audiobook in minutes. No sign-up, no credit card, no catch.
             </p>
             <Link
-              href="/register"
+              href="/convert"
               className="mt-10 inline-flex items-center gap-2 rounded-full bg-gold px-8 py-4 font-display text-xl text-ink transition-transform hover:scale-[1.02] active:scale-95"
             >
               Add your first book →

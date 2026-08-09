@@ -6,10 +6,10 @@ import NowPlayingBar from "@/components/NowPlaying";
 import ConfettiProvider from "@/components/Confetti";
 import FloatingUpload from "@/components/FloatingUpload";
 import CommandPalette from "@/components/CommandPalette";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth();
+  const { loading } = useSession();
 
   if (loading) {
     return (

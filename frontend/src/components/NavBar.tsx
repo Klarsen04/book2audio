@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -13,15 +13,25 @@ const NAV_LINKS = [
 ];
 
 export default function NavBar() {
-  const { user, logout } = useAuth();
+  const { active, restoreKey, signOut } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const handleLogout = async () => {
-    await logout();
-    // Return to the animated marketing homepage, not the login screen.
+  const handleSignOut = async () => {
+    await signOut();
+    // Return to the animated marketing homepage.
     router.push("/");
+  };
+
+  const copyKey = async () => {
+    if (!restoreKey) return;
+    try {
+      await navigator.clipboard.writeText(restoreKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
   };
 
   const isActive = (path: string) => pathname === path;
@@ -58,18 +68,20 @@ export default function NavBar() {
         </div>
 
         <div className="flex items-center gap-4">
-          {user && (
+          {active && (
             <>
-              <div className="hidden sm:flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center label-mono text-gold">
-                  {(user.name || user.email || "U")[0].toUpperCase()}
-                </div>
-                <span className="font-serif text-sm text-paper/60">
-                  {user.name || user.email}
-                </span>
-              </div>
+              {restoreKey && (
+                <button
+                  onClick={copyKey}
+                  title="Copy your restore key — save it to come back to this library"
+                  className="hidden sm:flex items-center gap-2 rounded-full border border-hairline px-3 py-1.5 label-mono text-paper/60 hover:border-gold/40 hover:text-gold transition-colors"
+                >
+                  <span className="text-gold">⧉</span>
+                  {copied ? "Copied" : restoreKey}
+                </button>
+              )}
               <button
-                onClick={handleLogout}
+                onClick={handleSignOut}
                 className="hidden sm:block font-serif text-sm text-paper/50 hover:text-paper transition-colors px-3 py-1.5 rounded-sm hover:bg-surface"
               >
                 Sign out
@@ -118,9 +130,17 @@ export default function NavBar() {
                   {link.label}
                 </Link>
               ))}
-              {user && (
+              {active && restoreKey && (
                 <button
-                  onClick={() => { handleLogout(); setMobileOpen(false); }}
+                  onClick={() => { copyKey(); }}
+                  className="w-full text-left px-4 py-2.5 rounded-sm label-mono text-gold hover:bg-surface transition-all"
+                >
+                  {copied ? "Key copied" : `⧉ ${restoreKey}`}
+                </button>
+              )}
+              {active && (
+                <button
+                  onClick={() => { handleSignOut(); setMobileOpen(false); }}
                   className="w-full text-left px-4 py-2.5 rounded-sm label-mono text-paper/50 hover:text-paper hover:bg-surface transition-all"
                 >
                   Sign out

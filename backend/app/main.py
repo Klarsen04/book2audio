@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import Thread
 
 import httpx
-from fastapi import FastAPI, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
@@ -13,8 +13,9 @@ from pydantic import BaseModel
 from app.database import init_db, get_db
 from app.parsers.extractor import extract_text, extract_from_pdf, extract_from_txt, BookContent, Chapter
 from app.tts.provider import get_synthesize_fn, get_voices_fn
-from app.auth.dependencies import get_current_user
-from app.auth.router import router as auth_router
+from app import storage
+from app.session import get_session, optional_session, set_session_cookie
+from app.session_router import router as session_router
 from app.library.router import router as library_router
 from app.playback.router import router as playback_router
 
@@ -30,7 +31,25 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Restore-Key"],
 )
+
+
+@app.middleware("http")
+async def attach_new_session(request: Request, call_next):
+    """
+    When get_session() mints a brand-new guest identity mid-request, persist it:
+    set the session cookie and surface the one-time restore key via a response
+    header so the frontend can show the "save your key" banner.
+    """
+    response = await call_next(request)
+    token = getattr(request.state, "new_session_token", None)
+    if token:
+        set_session_cookie(response, token)
+        key = getattr(request.state, "new_restore_key", None)
+        if key:
+            response.headers["X-Restore-Key"] = key
+    return response
 
 # Where generated audio is stored. Must live on persistent storage in
 # production (e.g. Render's mounted disk) or files are lost on every deploy.
@@ -46,7 +65,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # In-memory progress tracking (not persisted — only for active conversions)
 conversion_progress: dict[str, dict] = {}
 
-app.include_router(auth_router)
+app.include_router(session_router)
 app.include_router(library_router)
 app.include_router(playback_router)
 
@@ -105,7 +124,7 @@ async def preview_voice(voice_id: str, text: str | None = None):
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile, user: dict = Depends(get_current_user)):
+async def upload_file(file: UploadFile, user: dict = Depends(get_session)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -171,7 +190,7 @@ class UploadTextRequest(BaseModel):
 
 
 @app.post("/api/upload-url")
-async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_current_user)):
+async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_session)):
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             resp = await client.get(body.url)
@@ -244,7 +263,7 @@ async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_current_us
 
 
 @app.post("/api/upload-text")
-async def upload_text(body: UploadTextRequest, user: dict = Depends(get_current_user)):
+async def upload_text(body: UploadTextRequest, user: dict = Depends(get_session)):
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="No text provided")
 
@@ -293,7 +312,7 @@ async def upload_text(body: UploadTextRequest, user: dict = Depends(get_current_
 
 
 @app.post("/api/convert/{doc_id}")
-async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", user: dict = Depends(get_current_user)):
+async def start_conversion(doc_id: str, voice: str = "Joanna", audio_type: str = "full", user: dict = Depends(get_session)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT id, status FROM documents WHERE id = ? AND user_id = ?",
@@ -382,8 +401,11 @@ def _run_conversion(doc_id: str, voice: str):
             segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
             full_audio += segment
 
-        output_path = OUTPUT_DIR / f"{doc_id}.mp3"
+        # Write locally first, then hand off to the storage layer (local dir in
+        # dev; uploaded to B2/R2 and removed locally when cloud is configured).
+        output_path = storage.local_path(doc_id)
         full_audio.export(str(output_path), format="mp3", bitrate="192k")
+        audio_ref = storage.save_audio(doc_id, output_path)
 
         duration = len(full_audio) / 1000.0
 
@@ -395,7 +417,7 @@ def _run_conversion(doc_id: str, voice: str):
                 ch["start_time"] = chapter_start_times[i]
             conn.execute(
                 "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
-                (str(output_path), duration, json.dumps(chapters), doc_id),
+                (audio_ref, duration, json.dumps(chapters), doc_id),
             )
 
         progress["status"] = "completed"
@@ -411,7 +433,7 @@ def _run_conversion(doc_id: str, voice: str):
 
 
 @app.get("/api/status/{doc_id}")
-async def get_status(doc_id: str, user: dict = Depends(get_current_user)):
+async def get_status(doc_id: str, user: dict = Depends(optional_session)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT id FROM documents WHERE id = ? AND user_id = ?",
@@ -443,10 +465,10 @@ async def get_status(doc_id: str, user: dict = Depends(get_current_user)):
 
 
 @app.get("/api/download/{doc_id}")
-async def download_audio(doc_id: str, user: dict = Depends(get_current_user)):
+async def download_audio(doc_id: str, user: dict = Depends(optional_session)):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT filename, audio_path, status FROM documents WHERE id = ? AND user_id = ?",
+            "SELECT filename, status FROM documents WHERE id = ? AND user_id = ?",
             (doc_id, user["id"]),
         ).fetchone()
 
@@ -454,10 +476,64 @@ async def download_audio(doc_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     if row["status"] != "completed":
         raise HTTPException(status_code=400, detail="Conversion not complete")
-
-    audio_path = row["audio_path"]
-    if not audio_path or not Path(audio_path).exists():
+    if not storage.exists(doc_id):
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     filename = Path(row["filename"]).stem + ".mp3"
-    return FileResponse(audio_path, media_type="audio/mpeg", filename=filename)
+    # Serve the local file directly when possible (supports range/seek); stream
+    # from object storage otherwise.
+    if not storage.use_cloud():
+        return FileResponse(str(storage.local_path(doc_id)), media_type="audio/mpeg", filename=filename)
+    return StreamingResponse(
+        storage.open_stream(doc_id),
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@app.get("/api/export")
+async def export_library(user: dict = Depends(optional_session)):
+    """
+    Bundle all of this session's completed audiobooks + a JSON manifest into a
+    single .b2a (zip) file the user can keep offline and re-import later.
+    """
+    import io
+    import zipfile
+
+    with get_db() as conn:
+        docs = conn.execute(
+            """SELECT id, filename, title, format, chapters_json, total_word_count,
+                      status, voice, audio_duration, created_at, converted_at
+               FROM documents WHERE user_id = ? ORDER BY created_at""",
+            (user["id"],),
+        ).fetchall()
+
+    manifest = {"version": 1, "exported_documents": [], "books": []}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for d in docs:
+            book = {
+                "id": d["id"],
+                "filename": d["filename"],
+                "title": d["title"],
+                "format": d["format"],
+                "chapters": json.loads(d["chapters_json"]),
+                "total_word_count": d["total_word_count"],
+                "status": d["status"],
+                "voice": d["voice"],
+                "audio_duration": d["audio_duration"],
+                "created_at": d["created_at"],
+                "converted_at": d["converted_at"],
+            }
+            manifest["books"].append(book)
+            if d["status"] == "completed" and storage.exists(d["id"]):
+                zf.writestr(f"audio/{d['id']}.mp3", storage.read_bytes(d["id"]))
+                manifest["exported_documents"].append(d["id"])
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="book2audio-library.b2a"'},
+    )
