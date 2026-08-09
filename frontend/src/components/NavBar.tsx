@@ -20,7 +20,8 @@ export default function NavBar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login");
+    // Return to the animated marketing homepage, not the login screen.
+    router.push("/");
   };
 
   const isActive = (path: string) => pathname === path;
