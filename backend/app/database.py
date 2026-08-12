@@ -14,12 +14,133 @@ TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
 USE_TURSO = bool(TURSO_URL)
 
 
+# --- libSQL (Turso) compatibility shim ---------------------------------------
+# The installed libsql_experimental client does NOT support
+# `connection.row_factory = sqlite3.Row`, and its cursors return plain tuples.
+# The rest of the codebase accesses columns by name (`row["col"]`) and builds
+# dicts (`dict(row)`), which only works with sqlite3.Row. These thin wrappers
+# give the libSQL connection the same row-by-name behaviour, using the
+# DB-API `cursor.description` for column names. The local sqlite3 path is
+# unchanged (it uses the native sqlite3.Row).
+
+
+class _LibsqlRow:
+    """A tuple-backed row that indexes by column name OR position, and supports
+    dict(row) / row.keys() like sqlite3.Row."""
+
+    __slots__ = ("_cols", "_vals")
+
+    def __init__(self, cols, vals):
+        self._cols = cols
+        self._vals = vals
+
+    def keys(self):
+        return list(self._cols)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._vals[key]
+        try:
+            return self._vals[self._cols.index(key)]
+        except ValueError:
+            raise KeyError(key)
+
+    def __iter__(self):
+        return iter(self._vals)
+
+    def __len__(self):
+        return len(self._vals)
+
+    def __repr__(self):
+        return f"_LibsqlRow({dict(zip(self._cols, self._vals))!r})"
+
+
+class _LibsqlCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def _cols(self):
+        desc = self._cursor.description
+        return [c[0] for c in desc] if desc else []
+
+    def execute(self, *args, **kwargs):
+        self._cursor.execute(*args, **kwargs)
+        return self
+
+    def executemany(self, *args, **kwargs):
+        self._cursor.executemany(*args, **kwargs)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return None if row is None else _LibsqlRow(self._cols(), row)
+
+    def fetchall(self):
+        cols = self._cols()
+        return [_LibsqlRow(cols, r) for r in self._cursor.fetchall()]
+
+    def fetchmany(self, size=None):
+        cols = self._cols()
+        rows = self._cursor.fetchmany(size) if size is not None else self._cursor.fetchmany()
+        return [_LibsqlRow(cols, r) for r in rows]
+
+    def __iter__(self):
+        cols = self._cols()
+        for r in self._cursor:
+            yield _LibsqlRow(cols, r)
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def close(self):
+        return self._cursor.close()
+
+
+class _LibsqlConnection:
+    """Wraps a libsql connection so it quacks like sqlite3 (row-by-name)."""
+
+    def __init__(self, conn):
+        self._conn = conn
+        # Accept assignment for API parity; the wrapper always yields _LibsqlRow.
+        self.row_factory = None
+
+    def execute(self, *args, **kwargs):
+        return _LibsqlCursor(self._conn.execute(*args, **kwargs))
+
+    def executemany(self, *args, **kwargs):
+        return _LibsqlCursor(self._conn.executemany(*args, **kwargs))
+
+    def executescript(self, *args, **kwargs):
+        self._conn.executescript(*args, **kwargs)
+        return self
+
+    def cursor(self):
+        return _LibsqlCursor(self._conn.cursor())
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+
 def get_connection():
     if USE_TURSO:
         import libsql_experimental as libsql
 
-        conn = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
-        conn.row_factory = sqlite3.Row
+        conn = _LibsqlConnection(libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN))
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
