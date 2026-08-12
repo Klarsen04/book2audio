@@ -59,6 +59,11 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # The python base image is a Docker "minor" bump (3.11 -> 3.14) that broke
+      # the libsql-experimental wheel. Hold Python at 3.11.x (patches only)
+      # until we deliberately migrate; allow patch updates.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: "/"

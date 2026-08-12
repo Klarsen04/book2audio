@@ -6,9 +6,9 @@ services:
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      # Pin Python: libsql-experimental (Turso client) has no wheel for Render's
-      # newer default (3.14) and can't compile in the build image. 3.11 has a
-      # prebuilt wheel. Keep in sync with backend/runtime.txt.
+      # Pin Python: libsql-experimental (Turso client) has no wheel for 3.14 and
+      # can't compile in the build image. Keep in sync with backend/Dockerfile
+      # and backend/runtime.txt.
       - key: PYTHON_VERSION
         value: "3.11.9"
       - key: TTS_PROVIDER
