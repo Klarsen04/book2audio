@@ -37,10 +37,24 @@ the mechanisms below.
 
 ## P1 — Prevent unbounded storage growth & abuse (needed before "real" use)
 
+> **STATUS (2026-08-12): IMPLEMENTED** on branch `feat/usage-limits`.
+> All four items below are done, all env-configurable (defaults in parens):
+> - Max upload size (`MAX_UPLOAD_MB`, 25) on file/url/text uploads → 413.
+> - Per-session storage quota (`USER_QUOTA_MB`, 500) via `documents.audio_bytes`;
+>   over-quota conversions return a structured `quota_exceeded` the frontend turns
+>   into an **Export (.zip) + Clear-and-restart** flow (`ConversionPanel.tsx`,
+>   new `DELETE /api/library`).
+> - Rate limiting (`RATE_LIMIT_UPLOADS_PER_HOUR` 30 / `RATE_LIMIT_CONVERSIONS_PER_HOUR`
+>   10) per IP via `app/ratelimit.py` → 429.
+> - Abandoned-session cleanup (`SESSION_TTL_DAYS`, 90): `users.last_active_at`
+>   tracking + a daily background job (`cleanup_abandoned_sessions`) that deletes
+>   idle sessions and their audio blobs.
+> Remaining P1 nicety: **restore-key UX** (#4) is still open.
+
 The free object-storage tiers are ~10 GB (≈ 60 full-length audiobooks). With
 no-login sessions, three things quietly eat that space:
 
-### 1. Abandoned / orphaned sessions never get reclaimed
+### 1. Abandoned / orphaned sessions never get reclaimed ✅ done
 A visitor who converts once and leaves — or loses their key — leaves audio in
 storage **forever**. Nobody can ever delete it (no login to reach it).
 
@@ -55,7 +69,7 @@ storage **forever**. Nobody can ever delete it (no login to reach it).
 - Make the TTL generous and clearly communicate "sessions are temporary — save
   your key" so this never surprises an active user.
 
-### 2. No per-user quota or max upload size
+### 2. No per-user quota or max upload size ✅ done
 One user (or a bot) can upload arbitrarily large files and unlimited docs.
 
 **What to do:**
@@ -65,7 +79,7 @@ One user (or a bot) can upload arbitrarily large files and unlimited docs.
   row at conversion time) and enforce a **per-key cap** (suggest 500 MB); block
   new conversions past it with an actionable message.
 
-### 3. No rate limiting — guests are minted automatically on write
+### 3. No rate limiting — guests are minted automatically on write ✅ done
 `get_session` mints a new guest on any upload/convert, so abuse is cheap.
 
 **What to do:**

@@ -225,3 +225,13 @@ def init_db():
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_restore_key ON users(restore_key_hash)"
             )
+        if "last_active_at" not in cols:
+            # Tracks session activity for abandoned-session cleanup. Backfill to
+            # now so existing sessions get a full grace window (not reaped at once).
+            conn.execute("ALTER TABLE users ADD COLUMN last_active_at TEXT")
+            conn.execute("UPDATE users SET last_active_at = datetime('now') WHERE last_active_at IS NULL")
+
+        doc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(documents)").fetchall()}
+        if "audio_bytes" not in doc_cols:
+            # Size of the stored audio, used for the per-session storage quota.
+            conn.execute("ALTER TABLE documents ADD COLUMN audio_bytes INTEGER NOT NULL DEFAULT 0")

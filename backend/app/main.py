@@ -14,6 +14,8 @@ from app.database import init_db, get_db
 from app.parsers.extractor import extract_text, extract_from_pdf, extract_from_txt, BookContent, Chapter
 from app.tts.provider import get_synthesize_fn, get_voices_fn
 from app import storage
+from app import limits
+from app.ratelimit import check_rate_limit
 from app.session import get_session, optional_session, set_session_cookie
 from app.session_router import router as session_router
 from app.library.router import router as library_router
@@ -73,9 +75,26 @@ app.include_router(library_router)
 app.include_router(playback_router)
 
 
+def _cleanup_loop():
+    """Periodically reclaim storage from abandoned sessions (idle > TTL)."""
+    import time
+    from app.session import cleanup_abandoned_sessions
+
+    while True:
+        try:
+            removed = cleanup_abandoned_sessions()
+            if removed:
+                print(f"[cleanup] removed {removed} abandoned session(s)")
+        except Exception as e:
+            print(f"[cleanup] error: {e}")
+        time.sleep(24 * 3600)
+
+
 @app.on_event("startup")
 def startup():
     init_db()
+    if limits.SESSION_TTL_DAYS > 0:
+        Thread(target=_cleanup_loop, daemon=True).start()
 
 
 @app.get("/api/health")
@@ -127,7 +146,8 @@ async def preview_voice(voice_id: str, text: str | None = None):
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile, user: dict = Depends(get_session)):
+async def upload_file(request: Request, file: UploadFile, user: dict = Depends(get_session)):
+    check_rate_limit(request, "upload", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -140,6 +160,14 @@ async def upload_file(file: UploadFile, user: dict = Depends(get_session)):
         )
 
     file_bytes = await file.read()
+    if len(file_bytes) > limits.MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "file_too_large",
+                "message": f"File is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
+            },
+        )
     try:
         content = extract_text(file.filename, file_bytes)
     except Exception as e:
@@ -193,7 +221,8 @@ class UploadTextRequest(BaseModel):
 
 
 @app.post("/api/upload-url")
-async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_session)):
+async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depends(get_session)):
+    check_rate_limit(request, "upload", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             resp = await client.get(body.url)
@@ -205,6 +234,14 @@ async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_session)):
 
     content_type = resp.headers.get("content-type", "")
     raw_bytes = resp.content
+    if len(raw_bytes) > limits.MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "file_too_large",
+                "message": f"That page/file is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
+            },
+        )
 
     try:
         if "application/pdf" in content_type or body.url.lower().endswith(".pdf"):
@@ -266,9 +303,18 @@ async def upload_url(body: UploadUrlRequest, user: dict = Depends(get_session)):
 
 
 @app.post("/api/upload-text")
-async def upload_text(body: UploadTextRequest, user: dict = Depends(get_session)):
+async def upload_text(request: Request, body: UploadTextRequest, user: dict = Depends(get_session)):
+    check_rate_limit(request, "upload", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="No text provided")
+    if len(body.text.encode("utf-8")) > limits.MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "file_too_large",
+                "message": f"That text is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
+            },
+        )
 
     try:
         content = extract_from_txt(body.text.encode("utf-8"))
@@ -317,11 +363,13 @@ async def upload_text(body: UploadTextRequest, user: dict = Depends(get_session)
 @app.post("/api/convert/{doc_id}")
 async def start_conversion(
     doc_id: str,
+    request: Request,
     voice: str = "Joanna",
     audio_type: str = "full",
     intro: bool = False,
     user: dict = Depends(get_session),
 ):
+    check_rate_limit(request, "convert", limits.RATE_LIMIT_CONVERSIONS_PER_HOUR)
     with get_db() as conn:
         row = conn.execute(
             "SELECT id, status FROM documents WHERE id = ? AND user_id = ?",
@@ -330,6 +378,26 @@ async def start_conversion(
 
     if not row:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Per-session storage quota: block starting a new conversion once the
+    # session's stored audio is at/over its cap. The frontend turns this into an
+    # "export your library, then clear it to free space" flow.
+    with get_db() as conn:
+        used = limits.user_audio_bytes(conn, user["id"])
+    if used >= limits.USER_QUOTA_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "quota_exceeded",
+                "message": (
+                    f"You've used {used / 1024 / 1024:.0f} MB of your "
+                    f"{limits.USER_QUOTA_MB} MB limit. Download your library to "
+                    f"keep it, then clear it to free up space."
+                ),
+                "usage_bytes": used,
+                "limit_bytes": limits.USER_QUOTA_BYTES,
+            },
+        )
 
     if doc_id not in conversion_progress:
         raise HTTPException(status_code=400, detail="Document content expired. Please re-upload.")
@@ -470,6 +538,7 @@ def _run_conversion(doc_id: str, voice: str):
         # dev; uploaded to B2/R2 and removed locally when cloud is configured).
         output_path = storage.local_path(doc_id)
         concat_mp3(chapter_files, output_path)
+        audio_size = os.path.getsize(output_path)
         audio_ref = storage.save_audio(doc_id, output_path)
 
         duration = mp3_duration(output_path) or cumulative
@@ -482,8 +551,8 @@ def _run_conversion(doc_id: str, voice: str):
                 if i < len(chapter_start_times):
                     ch["start_time"] = chapter_start_times[i]
             conn.execute(
-                "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
-                (audio_ref, duration, json.dumps(chapters), doc_id),
+                "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, audio_bytes = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
+                (audio_ref, duration, audio_size, json.dumps(chapters), doc_id),
             )
 
         progress["status"] = "completed"
@@ -563,46 +632,77 @@ async def download_audio(doc_id: str, user: dict = Depends(optional_session)):
 @app.get("/api/export")
 async def export_library(user: dict = Depends(optional_session)):
     """
-    Bundle all of this session's completed audiobooks + a JSON manifest into a
-    single .b2a (zip) file the user can keep offline and re-import later.
+    Bundle ALL of this session's completed audiobooks into a single .zip the user
+    can open and play directly — one MP3 per book, named by its title. Nothing
+    else is included (no manifest/metadata) so the archive holds only the audio.
+
+    Streamed to a temp file one chunk at a time (never the whole library in
+    memory) so it stays within the small free-tier RAM even at the storage quota.
     """
-    import io
+    import re
+    import shutil
+    import tempfile
     import zipfile
+    from starlette.background import BackgroundTask
 
     with get_db() as conn:
         docs = conn.execute(
-            """SELECT id, filename, title, format, chapters_json, total_word_count,
-                      status, voice, audio_duration, created_at, converted_at
-               FROM documents WHERE user_id = ? ORDER BY created_at""",
+            "SELECT id, title, status FROM documents WHERE user_id = ? ORDER BY created_at",
             (user["id"],),
         ).fetchall()
 
-    manifest = {"version": 1, "exported_documents": [], "books": []}
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for d in docs:
-            book = {
-                "id": d["id"],
-                "filename": d["filename"],
-                "title": d["title"],
-                "format": d["format"],
-                "chapters": json.loads(d["chapters_json"]),
-                "total_word_count": d["total_word_count"],
-                "status": d["status"],
-                "voice": d["voice"],
-                "audio_duration": d["audio_duration"],
-                "created_at": d["created_at"],
-                "converted_at": d["converted_at"],
-            }
-            manifest["books"].append(book)
-            if d["status"] == "completed" and storage.exists(d["id"]):
-                zf.writestr(f"audio/{d['id']}.mp3", storage.read_bytes(d["id"]))
-                manifest["exported_documents"].append(d["id"])
-        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+    def _safe_name(title: str) -> str:
+        base = re.sub(r'[\\/:*?"<>|]+', "", (title or "audiobook")).strip() or "audiobook"
+        return base[:120]
 
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
+    used_names: dict[str, int] = {}
+    exported = 0
+
+    fd, zip_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    try:
+        # ZIP_STORED (no compression): MP3 is already compressed, so deflate just
+        # burns CPU for ~no size win.
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+            for d in docs:
+                if d["status"] != "completed" or not storage.exists(d["id"]):
+                    continue
+                name = _safe_name(d["title"])
+                # De-duplicate identical titles: "Title.mp3", "Title (2).mp3"...
+                n = used_names.get(name, 0) + 1
+                used_names[name] = n
+                filename = f"{name}.mp3" if n == 1 else f"{name} ({n}).mp3"
+                src = storage.open_stream(d["id"])
+                try:
+                    with zf.open(filename, "w") as dest:
+                        shutil.copyfileobj(src, dest, 1024 * 1024)
+                finally:
+                    try:
+                        src.close()
+                    except Exception:
+                        # Best-effort close of the source stream; failure here
+                        # must not abort the export.
+                        pass
+                exported += 1
+    except Exception:
+        try:
+            os.unlink(zip_path)
+        except OSError:
+            # Temp file already removed / never created — nothing to clean up.
+            pass
+        raise
+
+    if exported == 0:
+        try:
+            os.unlink(zip_path)
+        except OSError:
+            # Temp file already removed / never created — nothing to clean up.
+            pass
+        raise HTTPException(status_code=400, detail="No completed audiobooks to export yet.")
+
+    return FileResponse(
+        zip_path,
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="book2audio-library.b2a"'},
+        filename="book2audio-library.zip",
+        background=BackgroundTask(os.unlink, zip_path),
     )

@@ -60,3 +60,26 @@ async def delete_document(doc_id: str, user: dict = Depends(optional_session)):
     storage.delete_audio(doc_id)
 
     return {"ok": True}
+
+
+@router.delete("")
+async def clear_library(user: dict = Depends(optional_session)):
+    """
+    Delete ALL of this session's documents + audio to free the storage quota.
+    Backs the "export your library, then clear it to start fresh" flow shown
+    when a session hits its quota. The restore key/session itself is kept.
+    """
+    with get_db() as conn:
+        doc_ids = [
+            r["id"]
+            for r in conn.execute(
+                "SELECT id FROM documents WHERE user_id = ?", (user["id"],)
+            ).fetchall()
+        ]
+        conn.execute("DELETE FROM playback_positions WHERE user_id = ?", (user["id"],))
+        conn.execute("DELETE FROM documents WHERE user_id = ?", (user["id"],))
+
+    for did in doc_ids:
+        storage.delete_audio(did)
+
+    return {"ok": True, "deleted": len(doc_ids)}
