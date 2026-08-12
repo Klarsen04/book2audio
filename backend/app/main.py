@@ -428,43 +428,56 @@ def _run_conversion(doc_id: str, voice: str):
     progress = conversion_progress[doc_id]
     content = progress["content"]
 
-    try:
-        from pydub import AudioSegment
-        import io
+    import tempfile
+    import shutil
+    from app.audio_utils import concat_mp3, mp3_duration
 
-        full_audio = AudioSegment.empty()
+    tmpdir = None
+    try:
+        synthesize = get_synthesize_fn()
         total_chapters = len(content.chapters)
+        tmpdir = tempfile.mkdtemp(prefix=f"b2a-{doc_id}-")
+
+        # Synthesize each chapter to its own file on disk and concatenate at the
+        # end. This keeps peak memory bounded to a single chapter's MP3 instead
+        # of decoding the entire book into PCM (which OOM'd on small hosts).
+        chapter_files = []
         chapter_start_times = []  # exact start time in seconds for each chapter
+        cumulative = 0.0
 
         for i, chapter in enumerate(content.chapters):
             progress["current_chapter"] = i + 1
+            chapter_start_times.append(cumulative)
 
-            # Record this chapter's start time before appending
-            chapter_start_times.append(len(full_audio) / 1000.0)
-
-            def on_chunk_progress(current, total):
+            def on_chunk_progress(current, total, _i=i):
                 chapter_progress = (current / total) * 100
-                overall = ((i * 100) + chapter_progress) / total_chapters
+                overall = ((_i * 100) + chapter_progress) / total_chapters
                 progress["progress"] = int(overall)
 
-            audio_bytes = get_synthesize_fn()(chapter.text, voice, on_progress=on_chunk_progress)
-            segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
-            full_audio += segment
+            audio_bytes = synthesize(chapter.text, voice, on_progress=on_chunk_progress)
+            ch_path = os.path.join(tmpdir, f"ch_{i:05d}.mp3")
+            with open(ch_path, "wb") as f:
+                f.write(audio_bytes)
+            del audio_bytes  # free the compressed bytes before the next chapter
+
+            chapter_files.append(ch_path)
+            cumulative += mp3_duration(ch_path)
 
         # Write locally first, then hand off to the storage layer (local dir in
         # dev; uploaded to B2/R2 and removed locally when cloud is configured).
         output_path = storage.local_path(doc_id)
-        full_audio.export(str(output_path), format="mp3", bitrate="192k")
+        concat_mp3(chapter_files, output_path)
         audio_ref = storage.save_audio(doc_id, output_path)
 
-        duration = len(full_audio) / 1000.0
+        duration = mp3_duration(output_path) or cumulative
 
         # Inject exact start times into the stored chapters_json
         with get_db() as conn:
             row = conn.execute("SELECT chapters_json FROM documents WHERE id = ?", (doc_id,)).fetchone()
             chapters = json.loads(row[0])
             for i, ch in enumerate(chapters):
-                ch["start_time"] = chapter_start_times[i]
+                if i < len(chapter_start_times):
+                    ch["start_time"] = chapter_start_times[i]
             conn.execute(
                 "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
                 (audio_ref, duration, json.dumps(chapters), doc_id),
@@ -480,6 +493,9 @@ def _run_conversion(doc_id: str, voice: str):
             conn.execute("UPDATE documents SET status = 'error' WHERE id = ?", (doc_id,))
         progress["status"] = "error"
         progress["error"] = str(e)
+    finally:
+        if tmpdir:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @app.get("/api/status/{doc_id}")

@@ -1,7 +1,6 @@
 import io
 import os
 import logging
-from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
@@ -64,36 +63,52 @@ def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
 
 
 def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> bytes:
+    import tempfile
+    import shutil
+    from app.audio_utils import concat_mp3
+
     voice_info = VOICES.get(voice, VOICES["Joanna"])
     voice_id = voice_info["id"]
     chunks = _split_text(text)
-    combined = AudioSegment.empty()
 
-    for i, chunk in enumerate(chunks):
-        audio_bytes = None
+    # Write each synthesized chunk straight to disk and concatenate with ffmpeg
+    # at the end, so a very long chapter never accumulates decoded PCM in memory.
+    tmpdir = tempfile.mkdtemp(prefix="b2a-chap-")
+    chunk_files = []
+    try:
+        for i, chunk in enumerate(chunks):
+            audio_bytes = None
 
-        if USE_EDGE:
-            try:
-                audio_bytes = _synthesize_chunk_edge(chunk, voice_id)
-            except Exception as e:
-                logger.warning(f"edge-tts failed, falling back to gTTS: {e}")
+            if USE_EDGE:
+                try:
+                    audio_bytes = _synthesize_chunk_edge(chunk, voice_id)
+                except Exception as e:
+                    logger.warning(f"edge-tts failed, falling back to gTTS: {e}")
 
-        if not audio_bytes:
-            try:
-                audio_bytes = _synthesize_chunk_gtts(chunk)
-            except Exception as e:
-                logger.error(f"gTTS also failed: {e}")
+            if not audio_bytes:
+                try:
+                    audio_bytes = _synthesize_chunk_gtts(chunk)
+                except Exception as e:
+                    logger.error(f"gTTS also failed: {e}")
 
-        if audio_bytes:
-            segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
-            combined += segment
+            if audio_bytes:
+                cp = os.path.join(tmpdir, f"chunk_{i:05d}.mp3")
+                with open(cp, "wb") as f:
+                    f.write(audio_bytes)
+                chunk_files.append(cp)
 
-        if on_progress:
-            on_progress(i + 1, len(chunks))
+            if on_progress:
+                on_progress(i + 1, len(chunks))
 
-    output = io.BytesIO()
-    combined.export(output, format="mp3", bitrate="192k")
-    return output.getvalue()
+        if not chunk_files:
+            return b""
+
+        out_path = os.path.join(tmpdir, "chapter.mp3")
+        concat_mp3(chunk_files, out_path)
+        with open(out_path, "rb") as f:
+            return f.read()
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def list_voices() -> list[dict]:
