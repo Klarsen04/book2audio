@@ -18,6 +18,7 @@ If AUDIO_BUCKET is unset, everything falls back to the local directory.
 """
 
 import os
+import uuid
 from pathlib import Path
 
 # Local fallback dir (mirrors main.py's resolution).
@@ -54,13 +55,23 @@ def use_cloud() -> bool:
     return _USE_S3
 
 
+def _safe_doc_id(doc_id: str) -> str:
+    """
+    Validate and normalize document IDs before using them in storage paths/keys.
+    Expected format is UUID.
+    """
+    return str(uuid.UUID(doc_id))
+
+
 def _key(doc_id: str) -> str:
-    return f"audio/{doc_id}.mp3"
+    safe_doc_id = _safe_doc_id(doc_id)
+    return f"audio/{safe_doc_id}.mp3"
 
 
 def local_path(doc_id: str) -> Path:
     """Local path where audio is written before upload (and served from locally)."""
-    return _LOCAL_DIR / f"{doc_id}.mp3"
+    safe_doc_id = _safe_doc_id(doc_id)
+    return _LOCAL_DIR / f"{safe_doc_id}.mp3"
 
 
 def save_audio(doc_id: str, source_path: str | Path) -> str:
