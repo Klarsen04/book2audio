@@ -13,6 +13,11 @@ services:
         value: "3.11.9"
       - key: TTS_PROVIDER
         value: edge
+      # Use edge-tts for conversions (real neural voices, no gTTS rate-limits).
+      # Verified reachable from this Render host. Falls back to gTTS per-chunk
+      # if edge ever fails.
+      - key: FORCE_EDGE_TTS
+        value: "true"
       # Signs the session cookie. Keep STABLE across deploys (see
       # DEPLOYMENT_PERSISTENCE.md) — generateValue is fine as long as Render
       # keeps it, which it does after first deploy.
