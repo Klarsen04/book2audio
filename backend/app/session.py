@@ -227,6 +227,8 @@ def cleanup_abandoned_sessions() -> int:
                 try:
                     storage.delete_audio(did)
                 except Exception:
+                    # Best-effort: a blob that's already gone or a transient
+                    # storage error must not stop us reaping the rest.
                     pass
             conn.execute("DELETE FROM playback_positions WHERE user_id = ?", (uid,))
             conn.execute("DELETE FROM documents WHERE user_id = ?", (uid,))

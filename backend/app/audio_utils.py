@@ -80,4 +80,5 @@ def concat_mp3(paths: list[str | Path], out_path: str | Path) -> None:
         try:
             os.unlink(list_path)
         except OSError:
+            # Temp list file already gone; nothing to clean up.
             pass

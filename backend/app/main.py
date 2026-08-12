@@ -680,12 +680,15 @@ async def export_library(user: dict = Depends(optional_session)):
                     try:
                         src.close()
                     except Exception:
+                        # Best-effort close of the source stream; failure here
+                        # must not abort the export.
                         pass
                 exported += 1
     except Exception:
         try:
             os.unlink(zip_path)
         except OSError:
+            # Temp file already removed / never created — nothing to clean up.
             pass
         raise
 
@@ -693,6 +696,7 @@ async def export_library(user: dict = Depends(optional_session)):
         try:
             os.unlink(zip_path)
         except OSError:
+            # Temp file already removed / never created — nothing to clean up.
             pass
         raise HTTPException(status_code=400, detail="No completed audiobooks to export yet.")
 
