@@ -119,15 +119,19 @@ Fewer orphaned libraries if fewer people lose their key.
       falls back to **gTTS** (lower quality, `use_edge:false` at `/api/health`).
       If voice quality matters, evaluate AWS Polly (needs creds/cost) or a
       hosted neural engine. Note licensing before shipping voice cloning.
-- [ ] **Offload audio streaming from the backend + free egress (Cloudflare).**
-      Downloads currently proxy through the backend (`storage.open_stream` →
-      Render → user), doubling bandwidth and counting against B2's 3× free-egress
-      cap. Fix by having the download endpoint **redirect to a URL** instead of
-      proxying — either B2 presigned GET URLs, or (for $0 egress) a **custom
-      Cloudflare domain in front of B2** (Bandwidth Alliance). Note the Cloudflare
-      path implies serving via an unlisted CDN URL (doc_id is an unguessable
-      UUID) rather than a keyed private read — acceptable, but a real change to
-      the download flow, not just env vars. Do this when egress actually matters.
+- [x] **Offload audio streaming from the backend.** DONE: on cloud storage the
+      `/api/download/{id}` endpoint now verifies ownership then **302-redirects to
+      a short-lived presigned B2 URL** (24h), so audio streams straight from B2
+      with native range/seek — no longer proxied through Render (which used to
+      count every play against the backend's bandwidth). The web player uses a
+      native `<audio src>` (was a full-file blob fetch), and `?download=1` serves
+      an attachment for the download button. Verified against B2 (200, range 206,
+      attachment disposition). This also delivers the "range-streaming reads"
+      OSS pattern below.
+      **Still optional (only if egress ever bites):** a **custom Cloudflare domain
+      in front of B2** (Bandwidth Alliance) for $0 egress — but B2's free egress
+      (3× stored/mo) is plenty for now, and presigned URLs already took the load
+      off the backend.
 
 ---
 
