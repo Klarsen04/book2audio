@@ -233,17 +233,68 @@ class UploadTextRequest(BaseModel):
     title: str = "Pasted text"
 
 
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+
+
+def _url_is_public(url: str) -> bool:
+    """
+    SSRF guard: only http(s), and the host must not resolve to a private,
+    loopback, link-local, or reserved address (blocks internal services and
+    cloud metadata endpoints like 169.254.169.254).
+    """
+    import socket
+    import ipaddress
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return False
+        for info in socket.getaddrinfo(parsed.hostname, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if (
+                ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+            ):
+                return False
+        return True
+    except Exception:
+        return False
+
+
 @app.post("/api/upload-url")
 async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depends(get_session)):
     check_rate_limit(request, "upload", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
+    if not _url_is_public(body.url):
+        raise HTTPException(status_code=400, detail="Please provide a valid public http(s) URL.")
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+        # Send browser-like headers — many sites 403 requests with no User-Agent.
+        async with httpx.AsyncClient(
+            follow_redirects=True, timeout=30.0, headers=_BROWSER_HEADERS
+        ) as client:
             resp = await client.get(body.url)
             resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: HTTP {e.response.status_code}")
+        code = e.response.status_code
+        if code in (401, 403):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "That site blocks automated access or requires signing in. "
+                    "Open the page, copy the text, and use “Paste Text” instead "
+                    "— or upload the file directly."
+                ),
+            )
+        raise HTTPException(status_code=400, detail=f"Couldn't fetch that URL (HTTP {code}).")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Couldn't fetch that URL: {str(e)}")
 
     content_type = resp.headers.get("content-type", "")
     raw_bytes = resp.content
@@ -276,6 +327,18 @@ async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depe
             )
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Failed to parse content: {str(e)}")
+
+    # Pages that load their content with JavaScript (or hide it behind a login/
+    # paywall, like many web-novel sites) come back as an near-empty shell.
+    if content.word_count < 30:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Couldn't find enough readable text on that page — it may load "
+                "content with JavaScript or require a login. Try “Paste Text” "
+                "with the article/chapter text instead."
+            ),
+        )
 
     doc_id = str(uuid.uuid4())
     fmt = "pdf" if ("application/pdf" in content_type or body.url.lower().endswith(".pdf")) else "html"
