@@ -49,7 +49,9 @@ the mechanisms below.
 > - Abandoned-session cleanup (`SESSION_TTL_DAYS`, 90): `users.last_active_at`
 >   tracking + a daily background job (`cleanup_abandoned_sessions`) that deletes
 >   idle sessions and their audio blobs.
-> Remaining P1 nicety: **restore-key UX** (#4) is still open.
+> Restore-key UX (#4) is now done too: the save-key banner offers **Download
+> (.txt)** alongside Copy, and **sign-out shows a confirmation** with the key so
+> nobody drops their only way back by accident.
 
 The free object-storage tiers are ~10 GB (≈ 60 full-length audiobooks). With
 no-login sessions, three things quietly eat that space:
@@ -86,7 +88,7 @@ One user (or a bot) can upload arbitrarily large files and unlimited docs.
 - Add lightweight rate limiting (e.g. `slowapi`) on `/api/upload*` and
   `/api/convert` keyed by IP + session (suggest N conversions/hour).
 
-### 4. Restore-key UX = data-loss prevention (fixes the problem at the source)
+### 4. Restore-key UX = data-loss prevention (fixes the problem at the source) ✅ done
 Fewer orphaned libraries if fewer people lose their key.
 
 **What to do:**
@@ -102,7 +104,10 @@ Fewer orphaned libraries if fewer people lose their key.
       `_run_conversion` now stream to disk + ffmpeg-concat, but `polly.py` still
       accumulates decoded PCM per chapter. Only bites if `TTS_PROVIDER=polly`;
       do it before ever switching providers.
-- [ ] **Recover conversions interrupted by a redeploy/restart.** Progress lives
+- [x] **Recover conversions interrupted by a redeploy/restart.** DONE: startup
+      now resets any doc left `status='converting'` (no in-memory job can survive
+      a restart) to `error` so the UI stops spinning. (Full resumable
+      checkpointing per `epub2tts` is still a larger future option.) Progress lives
       in the in-memory `conversion_progress` dict and parsed content is
       in-memory too; a redeploy mid-conversion orphans the job and the doc can
       be stuck `status='converting'` forever. On startup, reset stuck

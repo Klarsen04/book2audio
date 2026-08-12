@@ -93,6 +93,19 @@ def _cleanup_loop():
 @app.on_event("startup")
 def startup():
     init_db()
+
+    # Conversion progress lives only in memory, so any doc still marked
+    # 'converting' at startup is a job the previous process lost to a
+    # restart/redeploy — it can never finish. Mark it errored so the UI stops
+    # spinning and the user can retry instead of waiting forever.
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE documents SET status = 'error' WHERE status = 'converting'"
+            )
+    except Exception as e:
+        print(f"[startup] could not reset interrupted conversions: {e}")
+
     if limits.SESSION_TTL_DAYS > 0:
         Thread(target=_cleanup_loop, daemon=True).start()
 

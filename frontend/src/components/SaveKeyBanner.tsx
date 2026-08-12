@@ -22,6 +22,21 @@ export default function SaveKeyBanner() {
     } catch {}
   };
 
+  const download = () => {
+    const body =
+      `Book2Audio — your restore key\n\n${restoreKey}\n\n` +
+      `Keep this safe. Pasting it on the app re-opens your library (your books, ` +
+      `chapters, and progress). There's no account and no way to recover it if lost.\n`;
+    const url = URL.createObjectURL(new Blob([body], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "book2audio-restore-key.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mb-8 rounded-sm border border-gold/30 bg-gold/[0.06] p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -41,6 +56,13 @@ export default function SaveKeyBanner() {
             className="label-mono rounded-sm bg-gold px-4 py-2.5 text-ink transition-transform hover:scale-[1.02] active:scale-95"
           >
             {copied ? "Copied" : "Copy"}
+          </button>
+          <button
+            onClick={download}
+            className="label-mono rounded-sm border border-hairline-strong px-4 py-2.5 text-paper/70 hover:text-paper hover:border-gold/40 transition-colors"
+            title="Download the key as a .txt file"
+          >
+            Download
           </button>
           <button
             onClick={markKeySaved}
