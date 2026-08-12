@@ -19,11 +19,11 @@ the mechanisms below.
       `TURSO_AUTH_TOKEN` on Render. The libSQL row-adapter fix
       (`app/database.py`) is required and is already on `main` — without it the
       app crashes on startup. Verified against a real Turso DB.
-- [ ] **Object storage (audio persistence).** Set `AUDIO_BUCKET` +
-      `AUDIO_S3_*` (Oracle / Backblaze B2 / Cloudflare R2 — all S3-compatible,
-      no code change). Validate creds against `app/storage.py` before deploying.
-      **Watch:** OCI may require S3 **path-style addressing** — if uploads fail,
-      set `boto3` `Config(s3={"addressing_style": "path"})` in `storage.py`.
+- [ ] **Object storage (audio persistence). DECISION: Backblaze B2** (see
+      "Storage decision" below). Set `AUDIO_BUCKET` + `AUDIO_S3_*` — S3-compatible,
+      **zero code change** with the existing backend-proxy download flow. No card
+      for the free 10 GB. Validate creds against `app/storage.py` before deploying.
+      Egress is free up to 3× stored bytes/mo, then $0.01/GB — fine for a trial.
 - [ ] **Verify the restore key survives a redeploy** (the whole point):
       convert a doc → save key → redeploy → paste key → library **and** audio
       come back.
@@ -100,11 +100,48 @@ Fewer orphaned libraries if fewer people lose their key.
       falls back to **gTTS** (lower quality, `use_edge:false` at `/api/health`).
       If voice quality matters, evaluate AWS Polly (needs creds/cost) or a
       hosted neural engine. Note licensing before shipping voice cloning.
-- [ ] **Offload audio streaming from the backend.** Downloads currently proxy
-      through the backend (`storage.open_stream` → Render → user), doubling
-      bandwidth and incurring object-store egress per play. Consider **presigned
-      GET URLs / redirects** so clients stream directly from the bucket (big win
-      on R2/Oracle where egress is free/cheap).
+- [ ] **Offload audio streaming from the backend + free egress (Cloudflare).**
+      Downloads currently proxy through the backend (`storage.open_stream` →
+      Render → user), doubling bandwidth and counting against B2's 3× free-egress
+      cap. Fix by having the download endpoint **redirect to a URL** instead of
+      proxying — either B2 presigned GET URLs, or (for $0 egress) a **custom
+      Cloudflare domain in front of B2** (Bandwidth Alliance). Note the Cloudflare
+      path implies serving via an unlisted CDN URL (doc_id is an unguessable
+      UUID) rather than a keyed private read — acceptable, but a real change to
+      the download flow, not just env vars. Do this when egress actually matters.
+
+---
+
+## Storage decision & research (2026-08-12)
+
+Ran a deep-research sweep (managed free tiers, self-hosted OSS, unconventional
+options, GitHub projects, reliability/cost modeling) for storing 50–500 GB of
+streamed audiobook MP3s via the boto3 S3 drop-in.
+
+- **Chosen now: Backblaze B2** — cheapest storage (~$0.54/mo @100 GB,
+  ~$2.94/mo @500 GB), no card for 10 GB free, most reliable track record, clean
+  S3 API. Works today with zero code change.
+- **Egress upgrade later: front B2 with a Cloudflare custom domain** → $0 egress
+  (Bandwidth Alliance). Tracked in P2 above.
+- **Top alternative: Cloudflare R2** — $0 egress out of the box, clean S3, needs
+  a card. Since `storage.py` is env-var-only, switching B2↔R2 is a zero-code change.
+- **Rejected:** Oracle *managed* Object Storage (free tier only ~20 GB + high
+  reclamation risk); Storj/Wasabi (egress economics/policies break streaming);
+  MinIO for new self-hosts (repo archived/unmaintained — use Garage/SeaweedFS);
+  "creative free" stores (HuggingFace, Internet Archive, GitHub LFS, Drive/Telegram
+  via rclone) — no real S3 API, force files public, or DMCA/ToS/ban exposure.
+
+### OSS patterns worth borrowing (MIT/Apache — this project can't use GPL)
+- [ ] **Resumable conversion checkpointing** — `aedocw/epub2tts` (Apache-2.0):
+      checkpoint completed chapters so a redeploy mid-conversion resumes instead
+      of re-synthesizing a whole book. Directly implements the
+      "recover interrupted conversions" item above.
+- [ ] **Chapter-per-file audio layout** — `santinic/audiblez` (MIT): store
+      `audio/{doc_id}/ch_{n}.mp3` so playback can stream/seek/resume per chapter
+      and re-synth is cheap. (Pairs well with the redirect-to-URL streaming change.)
+- [ ] **Real range-streaming reads** — `piskvorky/smart_open` (MIT) /
+      `drivendataorg/cloudpathlib` (MIT): replace `storage.read_bytes()`'s
+      full-file load with seekable range reads for playback + lower memory.
 
 ---
 
