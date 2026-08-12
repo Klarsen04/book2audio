@@ -18,8 +18,16 @@ export default function NavBar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
+    // Confirm first — signing out drops this device's only link to the library.
+    setMobileOpen(false);
+    setConfirmSignOut(true);
+  };
+
+  const doSignOut = async () => {
+    setConfirmSignOut(false);
     await signOut();
     // Return to the animated marketing homepage.
     router.push("/");
@@ -147,6 +155,61 @@ export default function NavBar() {
                 </button>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sign-out confirmation — the restore key is the only way back. */}
+      <AnimatePresence>
+        {confirmSignOut && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/70 backdrop-blur-sm p-4"
+            onClick={() => setConfirmSignOut(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 8 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 8 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-sm border border-hairline-strong bg-surface-hover p-6"
+            >
+              <h2 className="font-display text-xl text-paper mb-2">Sign out?</h2>
+              <p className="font-serif text-sm leading-relaxed text-paper/70">
+                Signing out removes this device&rsquo;s link to your library. You can
+                only get back with your restore key — there&rsquo;s no account to
+                recover it. Make sure you&rsquo;ve saved it.
+              </p>
+              {restoreKey && (
+                <div className="mt-4 flex items-center gap-2">
+                  <code className="flex-1 overflow-x-auto rounded-sm border border-hairline bg-ink px-3 py-2 font-mono text-sm tracking-widest text-paper">
+                    {restoreKey}
+                  </code>
+                  <button
+                    onClick={copyKey}
+                    className="label-mono shrink-0 rounded-sm bg-gold px-3 py-2 text-ink"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              )}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setConfirmSignOut(false)}
+                  className="label-mono px-4 py-2 text-paper/60 hover:text-paper"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={doSignOut}
+                  className="label-mono rounded-sm border border-burgundy/40 bg-burgundy/10 px-4 py-2 text-burgundy-soft transition-colors hover:bg-burgundy/20"
+                >
+                  Sign out
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

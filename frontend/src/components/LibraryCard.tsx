@@ -159,7 +159,7 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
         )}
         {doc.status === "completed" && (
           <a
-            href={`/api/download/${doc.id}`}
+            href={`/api/download/${doc.id}?download=1`}
             download
             className="p-2 rounded-sm text-paper/40 hover:text-gold hover:bg-gold/10 transition-all"
             title="Download MP3"

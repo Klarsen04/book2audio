@@ -7,7 +7,7 @@ from threading import Thread
 import httpx
 from fastapi import FastAPI, UploadFile, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from pydantic import BaseModel
 
 from app.database import init_db, get_db
@@ -93,6 +93,19 @@ def _cleanup_loop():
 @app.on_event("startup")
 def startup():
     init_db()
+
+    # Conversion progress lives only in memory, so any doc still marked
+    # 'converting' at startup is a job the previous process lost to a
+    # restart/redeploy — it can never finish. Mark it errored so the UI stops
+    # spinning and the user can retry instead of waiting forever.
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE documents SET status = 'error' WHERE status = 'converting'"
+            )
+    except Exception as e:
+        print(f"[startup] could not reset interrupted conversions: {e}")
+
     if limits.SESSION_TTL_DAYS > 0:
         Thread(target=_cleanup_loop, daemon=True).start()
 
@@ -603,7 +616,7 @@ async def get_status(doc_id: str, user: dict = Depends(optional_session)):
 
 
 @app.get("/api/download/{doc_id}")
-async def download_audio(doc_id: str, user: dict = Depends(optional_session)):
+async def download_audio(doc_id: str, download: bool = False, user: dict = Depends(optional_session)):
     with get_db() as conn:
         row = conn.execute(
             "SELECT filename, status FROM documents WHERE id = ? AND user_id = ?",
@@ -618,15 +631,36 @@ async def download_audio(doc_id: str, user: dict = Depends(optional_session)):
         raise HTTPException(status_code=404, detail="Audio file not found")
 
     filename = Path(row["filename"]).stem + ".mp3"
-    # Serve the local file directly when possible (supports range/seek); stream
-    # from object storage otherwise.
-    if not storage.use_cloud():
+
+    # On cloud storage, hand the client a short-lived direct URL (302) so audio
+    # streams straight from B2/R2 with native range/seek — not proxied through
+    # the backend (which would burn the backend's limited bandwidth on every
+    # play). `?download=1` serves it as an attachment; otherwise inline for the
+    # player. Falls back to proxying if a URL can't be minted.
+    if storage.use_cloud():
+        url = storage.presigned_url(doc_id, filename=filename if download else None)
+        if url:
+            return RedirectResponse(url, status_code=302)
+        disposition = "attachment" if download else "inline"
+
+        def iter_audio():
+            with storage.open_stream(doc_id) as f:
+                while True:
+                    chunk = f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+
+        return StreamingResponse(
+            iter_audio(),
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+        )
+
+    # Local storage: serve the file directly (FileResponse supports range/seek).
+    if download:
         return FileResponse(str(storage.local_path(doc_id)), media_type="audio/mpeg", filename=filename)
-    return StreamingResponse(
-        storage.open_stream(doc_id),
-        media_type="audio/mpeg",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
-    )
+    return FileResponse(str(storage.local_path(doc_id)), media_type="audio/mpeg")
 
 
 @app.get("/api/export")

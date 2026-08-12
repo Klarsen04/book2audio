@@ -49,7 +49,9 @@ the mechanisms below.
 > - Abandoned-session cleanup (`SESSION_TTL_DAYS`, 90): `users.last_active_at`
 >   tracking + a daily background job (`cleanup_abandoned_sessions`) that deletes
 >   idle sessions and their audio blobs.
-> Remaining P1 nicety: **restore-key UX** (#4) is still open.
+> Restore-key UX (#4) is now done too: the save-key banner offers **Download
+> (.txt)** alongside Copy, and **sign-out shows a confirmation** with the key so
+> nobody drops their only way back by accident.
 
 The free object-storage tiers are ~10 GB (≈ 60 full-length audiobooks). With
 no-login sessions, three things quietly eat that space:
@@ -86,7 +88,7 @@ One user (or a bot) can upload arbitrarily large files and unlimited docs.
 - Add lightweight rate limiting (e.g. `slowapi`) on `/api/upload*` and
   `/api/convert` keyed by IP + session (suggest N conversions/hour).
 
-### 4. Restore-key UX = data-loss prevention (fixes the problem at the source)
+### 4. Restore-key UX = data-loss prevention (fixes the problem at the source) ✅ done
 Fewer orphaned libraries if fewer people lose their key.
 
 **What to do:**
@@ -102,7 +104,10 @@ Fewer orphaned libraries if fewer people lose their key.
       `_run_conversion` now stream to disk + ffmpeg-concat, but `polly.py` still
       accumulates decoded PCM per chapter. Only bites if `TTS_PROVIDER=polly`;
       do it before ever switching providers.
-- [ ] **Recover conversions interrupted by a redeploy/restart.** Progress lives
+- [x] **Recover conversions interrupted by a redeploy/restart.** DONE: startup
+      now resets any doc left `status='converting'` (no in-memory job can survive
+      a restart) to `error` so the UI stops spinning. (Full resumable
+      checkpointing per `epub2tts` is still a larger future option.) Progress lives
       in the in-memory `conversion_progress` dict and parsed content is
       in-memory too; a redeploy mid-conversion orphans the job and the doc can
       be stuck `status='converting'` forever. On startup, reset stuck
@@ -114,15 +119,19 @@ Fewer orphaned libraries if fewer people lose their key.
       falls back to **gTTS** (lower quality, `use_edge:false` at `/api/health`).
       If voice quality matters, evaluate AWS Polly (needs creds/cost) or a
       hosted neural engine. Note licensing before shipping voice cloning.
-- [ ] **Offload audio streaming from the backend + free egress (Cloudflare).**
-      Downloads currently proxy through the backend (`storage.open_stream` →
-      Render → user), doubling bandwidth and counting against B2's 3× free-egress
-      cap. Fix by having the download endpoint **redirect to a URL** instead of
-      proxying — either B2 presigned GET URLs, or (for $0 egress) a **custom
-      Cloudflare domain in front of B2** (Bandwidth Alliance). Note the Cloudflare
-      path implies serving via an unlisted CDN URL (doc_id is an unguessable
-      UUID) rather than a keyed private read — acceptable, but a real change to
-      the download flow, not just env vars. Do this when egress actually matters.
+- [x] **Offload audio streaming from the backend.** DONE: on cloud storage the
+      `/api/download/{id}` endpoint now verifies ownership then **302-redirects to
+      a short-lived presigned B2 URL** (24h), so audio streams straight from B2
+      with native range/seek — no longer proxied through Render (which used to
+      count every play against the backend's bandwidth). The web player uses a
+      native `<audio src>` (was a full-file blob fetch), and `?download=1` serves
+      an attachment for the download button. Verified against B2 (200, range 206,
+      attachment disposition). This also delivers the "range-streaming reads"
+      OSS pattern below.
+      **Still optional (only if egress ever bites):** a **custom Cloudflare domain
+      in front of B2** (Bandwidth Alliance) for $0 egress — but B2's free egress
+      (3× stored/mo) is plenty for now, and presigned URLs already took the load
+      off the backend.
 
 ---
 

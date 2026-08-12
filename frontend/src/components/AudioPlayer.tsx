@@ -59,31 +59,17 @@ export default function AudioPlayer({
   }, []);
 
   useEffect(() => {
+    // Point the native <audio> element straight at the endpoint. The backend
+    // 302-redirects to a direct storage URL, so playback streams with real
+    // range/seek (and doesn't pull the whole file into memory). Loading state
+    // is driven by the audio element's own events below.
     setAudioLoading(true);
-    fetch(`/api/download/${docId}`, { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Download failed");
-        return res.blob();
-      })
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
-        if (audioRef.current) {
-          audioRef.current.src = url;
-        }
-      })
-      .catch(() => {
-        const fallback = `/api/download/${docId}`;
-        setAudioUrl(fallback);
-        if (audioRef.current) {
-          audioRef.current.src = fallback;
-        }
-      })
-      .finally(() => setAudioLoading(false));
-
-    return () => {
-      if (audioUrl.startsWith("blob:")) URL.revokeObjectURL(audioUrl);
-    };
+    const src = `/api/download/${docId}`;
+    setAudioUrl(src);
+    if (audioRef.current) {
+      audioRef.current.src = src;
+      audioRef.current.load();
+    }
   }, [docId]);
 
   useEffect(() => {
@@ -225,15 +211,25 @@ export default function AudioPlayer({
       onEnded?.();
       savePosition(audio.currentTime);
     };
+    const stopLoading = () => setAudioLoading(false);
+    const startLoading = () => setAudioLoading(true);
 
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("canplay", stopLoading);
+    audio.addEventListener("playing", stopLoading);
+    audio.addEventListener("error", stopLoading);
+    audio.addEventListener("waiting", startLoading);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("canplay", stopLoading);
+      audio.removeEventListener("playing", stopLoading);
+      audio.removeEventListener("error", stopLoading);
+      audio.removeEventListener("waiting", startLoading);
     };
   }, [audioUrl, positionLoaded, savePosition]);
 
@@ -361,7 +357,8 @@ export default function AudioPlayer({
 
   const handleDownload = () => {
     const a = document.createElement("a");
-    a.href = audioUrl;
+    // `?download=1` makes the backend serve it as an attachment.
+    a.href = `/api/download/${docId}?download=1`;
     a.download = `${title}.mp3`;
     a.click();
   };
