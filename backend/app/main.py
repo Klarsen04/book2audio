@@ -642,8 +642,17 @@ async def download_audio(doc_id: str, download: bool = False, user: dict = Depen
         if url:
             return RedirectResponse(url, status_code=302)
         disposition = "attachment" if download else "inline"
+
+        def iter_audio():
+            with storage.open_stream(doc_id) as f:
+                while True:
+                    chunk = f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+
         return StreamingResponse(
-            storage.open_stream(doc_id),
+            iter_audio(),
             media_type="audio/mpeg",
             headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
         )
