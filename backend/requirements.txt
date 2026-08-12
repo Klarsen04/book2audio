@@ -16,4 +16,4 @@ edge-tts>=7.0.0
 gTTS>=2.5.0
 defusedxml>=0.7.0
 # Optional persistent DB (Turso/libSQL). Only imported when TURSO_DATABASE_URL is set.
-libsql-experimental>=0.0.37
+libsql-experimental>=0.0.55
