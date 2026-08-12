@@ -539,6 +539,13 @@ def _run_conversion(doc_id: str, voice: str):
                 progress["progress"] = int(overall)
 
             audio_bytes = synthesize(chapter.text, voice, on_progress=on_chunk_progress)
+            # Skip chapters that produced no audio — empty/whitespace text is
+            # common in EPUB spine items (cover, nav, blank pages). Writing a
+            # 0-byte file would make ffmpeg's concat fail on the whole book. The
+            # start_time recorded above stays aligned (it points at the next
+            # real audio), so chapter navigation still works.
+            if not audio_bytes:
+                continue
             ch_path = os.path.join(tmpdir, f"ch_{i:05d}.mp3")
             with open(ch_path, "wb") as f:
                 f.write(audio_bytes)
@@ -546,6 +553,9 @@ def _run_conversion(doc_id: str, voice: str):
 
             chapter_files.append(ch_path)
             cumulative += mp3_duration(ch_path)
+
+        if not chapter_files:
+            raise RuntimeError("No readable text could be narrated from this document.")
 
         # Write locally first, then hand off to the storage layer (local dir in
         # dev; uploaded to B2/R2 and removed locally when cloud is configured).
