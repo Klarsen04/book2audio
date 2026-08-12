@@ -42,9 +42,11 @@ def concat_mp3(paths: list[str | Path], out_path: str | Path) -> None:
     parameters), fall back to a single re-encode pass, which ffmpeg still
     streams file-by-file.
     """
-    paths = [Path(p) for p in paths]
+    # Drop missing or 0-byte inputs — a single empty/corrupt file makes ffmpeg's
+    # concat (and even the re-encode fallback) fail for the whole batch.
+    paths = [Path(p) for p in paths if Path(p).exists() and Path(p).stat().st_size > 0]
     if not paths:
-        raise ValueError("concat_mp3: no input files")
+        raise ValueError("concat_mp3: no non-empty input files")
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
