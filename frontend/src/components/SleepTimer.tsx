@@ -101,7 +101,7 @@ export default function SleepTimer({ onTimerEnd, onFadeStart }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 5, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full mb-3 left-0 bg-surface-hover border border-hairline-strong rounded-sm p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]"
+            className="absolute z-[100] bottom-full mb-3 left-0 bg-surface-hover border border-hairline-strong rounded-sm p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.6)]"
           >
             <p className="label-mono text-paper/40 mb-2.5 px-1">Stop playing after:</p>
             <div className="flex gap-1.5">

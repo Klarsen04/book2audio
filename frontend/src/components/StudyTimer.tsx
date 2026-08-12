@@ -24,6 +24,18 @@ export default function StudyTimer({ onTimerEnd }: Props) {
   const [preset, setPreset] = useState<keyof typeof PRESETS>("pomodoro");
   const [sessions, setSessions] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isRunning || isPaused || remaining <= 0) return;
@@ -84,7 +96,7 @@ export default function StudyTimer({ onTimerEnd }: Props) {
     : 0;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <div className="flex items-center gap-1.5">
         <button
           onClick={() => (!isRunning ? setIsOpen(!isOpen) : undefined)}

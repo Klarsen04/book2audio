@@ -29,10 +29,26 @@ export default function PlaybackSpeed({ speed, onChange }: Props) {
   const handleOpen = () => {
     if (!isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setPos({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      });
+      // Approximate popup box (200px grid + padding/border/label).
+      const popupWidth = 226;
+      const popupHeight = 170;
+      const margin = 8;
+
+      // Flip above the button when there isn't room below.
+      const roomBelow = window.innerHeight - rect.bottom;
+      const top =
+        roomBelow < popupHeight + margin && rect.top > roomBelow
+          ? Math.max(margin, rect.top - popupHeight - margin)
+          : rect.bottom + margin;
+
+      // Keep the right edge on-screen: never let the popup spill past either side.
+      const maxRight = window.innerWidth - popupWidth - margin;
+      const right = Math.min(
+        Math.max(margin, window.innerWidth - rect.right),
+        Math.max(margin, maxRight)
+      );
+
+      setPos({ top, right });
     }
     setIsOpen(!isOpen);
   };
