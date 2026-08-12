@@ -1,4 +1,7 @@
-FROM python:3.14-slim
+# Pinned to 3.11: libsql-experimental (Turso client) ships no wheel for 3.14
+# and can't compile in the slim image (no C linker). Do not bump the minor
+# version without confirming a libsql wheel exists — see .github/dependabot.yml.
+FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
