@@ -1,0 +1,22 @@
+name: Dependency Review
+
+# Flags vulnerable/badly-licensed deps added in a PR (npm + pip). Needs the
+# Dependency Graph enabled (Settings → Code security). Free on public repos;
+# private repos need GitHub Advanced Security.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

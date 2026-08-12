@@ -1,0 +1,27 @@
+# Area labels applied by .github/workflows/labeler.yml (actions/labeler v5).
+
+"area: frontend":
+  - changed-files:
+      - any-glob-to-any-file: ["frontend/**"]
+
+"area: backend":
+  - changed-files:
+      - any-glob-to-any-file: ["backend/**"]
+
+"area: mobile":
+  - changed-files:
+      - any-glob-to-any-file: ["mobile/**"]
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]
+
+"area: docker":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/Dockerfile"
+          - "docker-compose.yml"
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file: ["**/*.md"]
