@@ -633,8 +633,8 @@ async def download_audio(doc_id: str, user: dict = Depends(optional_session)):
 async def export_library(user: dict = Depends(optional_session)):
     """
     Bundle ALL of this session's completed audiobooks into a single .zip the user
-    can open and play directly — one MP3 per book named by its title, plus a
-    small manifest.json for reference.
+    can open and play directly — one MP3 per book, named by its title. Nothing
+    else is included (no manifest/metadata) so the archive holds only the audio.
 
     Streamed to a temp file one chunk at a time (never the whole library in
     memory) so it stays within the small free-tier RAM even at the storage quota.
@@ -647,8 +647,7 @@ async def export_library(user: dict = Depends(optional_session)):
 
     with get_db() as conn:
         docs = conn.execute(
-            """SELECT id, title, voice, audio_duration, total_word_count, status, created_at
-               FROM documents WHERE user_id = ? ORDER BY created_at""",
+            "SELECT id, title, status FROM documents WHERE user_id = ? ORDER BY created_at",
             (user["id"],),
         ).fetchall()
 
@@ -656,7 +655,6 @@ async def export_library(user: dict = Depends(optional_session)):
         base = re.sub(r'[\\/:*?"<>|]+', "", (title or "audiobook")).strip() or "audiobook"
         return base[:120]
 
-    manifest = {"version": 2, "books": []}
     used_names: dict[str, int] = {}
     exported = 0
 
@@ -667,32 +665,23 @@ async def export_library(user: dict = Depends(optional_session)):
         # burns CPU for ~no size win.
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
             for d in docs:
-                entry = None
-                if d["status"] == "completed" and storage.exists(d["id"]):
-                    name = _safe_name(d["title"])
-                    # De-duplicate identical titles: "Title.mp3", "Title (2).mp3"...
-                    n = used_names.get(name, 0) + 1
-                    used_names[name] = n
-                    entry = f"{name}.mp3" if n == 1 else f"{name} ({n}).mp3"
-                    src = storage.open_stream(d["id"])
+                if d["status"] != "completed" or not storage.exists(d["id"]):
+                    continue
+                name = _safe_name(d["title"])
+                # De-duplicate identical titles: "Title.mp3", "Title (2).mp3"...
+                n = used_names.get(name, 0) + 1
+                used_names[name] = n
+                filename = f"{name}.mp3" if n == 1 else f"{name} ({n}).mp3"
+                src = storage.open_stream(d["id"])
+                try:
+                    with zf.open(filename, "w") as dest:
+                        shutil.copyfileobj(src, dest, 1024 * 1024)
+                finally:
                     try:
-                        with zf.open(entry, "w") as dest:
-                            shutil.copyfileobj(src, dest, 1024 * 1024)
-                    finally:
-                        try:
-                            src.close()
-                        except Exception:
-                            pass
-                    exported += 1
-                manifest["books"].append({
-                    "title": d["title"],
-                    "file": entry,
-                    "voice": d["voice"],
-                    "duration_seconds": d["audio_duration"],
-                    "words": d["total_word_count"],
-                    "created_at": d["created_at"],
-                })
-            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+                        src.close()
+                    except Exception:
+                        pass
+                exported += 1
     except Exception:
         try:
             os.unlink(zip_path)
