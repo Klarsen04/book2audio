@@ -49,6 +49,8 @@ export default function ConversionPanel({
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [freeingSpace, setFreeingSpace] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
 
@@ -90,6 +92,7 @@ export default function ConversionPanel({
   const handleConvert = async () => {
     setIsConverting(true);
     setError(null);
+    setErrorCode(null);
     setProgress(0);
 
     try {
@@ -98,7 +101,45 @@ export default function ConversionPanel({
       );
     } catch (err: any) {
       setIsConverting(false);
-      setError(err.response?.data?.detail || "Failed to start conversion");
+      // `detail` may be a plain string or a structured object ({code, message}).
+      const detail = err.response?.data?.detail;
+      if (detail && typeof detail === "object") {
+        setError(detail.message || "Failed to start conversion");
+        setErrorCode(detail.code || null);
+      } else {
+        setError(detail || "Failed to start conversion");
+        setErrorCode(null);
+      }
+    }
+  };
+
+  // Download the whole library as one .zip so the user keeps their audiobooks.
+  const handleExportLibrary = async () => {
+    try {
+      const res = await api.get("/api/export", { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "book2audio-library.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // best-effort
+    }
+  };
+
+  // Clear the library to free the storage quota, then return to a fresh start.
+  const handleClearAndRestart = async () => {
+    setFreeingSpace(true);
+    try {
+      await api.delete("/api/library");
+      onBack();
+    } catch {
+      setError("Couldn't clear your library. Please try again.");
+    } finally {
+      setFreeingSpace(false);
     }
   };
 
@@ -389,7 +430,36 @@ export default function ConversionPanel({
         </motion.button>
       )}
 
-      {error && (
+      {error && errorCode === "quota_exceeded" ? (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-surface-hover border border-gold/30 rounded-sm p-6 space-y-4"
+        >
+          <div>
+            <h3 className="text-paper font-display text-lg mb-1">Your library is full</h3>
+            <p className="text-paper/60 text-sm font-serif leading-relaxed">{error}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleExportLibrary}
+              className="flex-1 py-3 rounded-sm bg-gold text-ink font-semibold hover:bg-gold-soft transition-all"
+            >
+              ⬇ Download my audiobooks (.zip)
+            </button>
+            <button
+              onClick={handleClearAndRestart}
+              disabled={freeingSpace}
+              className="flex-1 py-3 rounded-sm bg-surface border border-hairline-strong text-paper/80 font-serif hover:bg-surface-active transition-all disabled:opacity-50"
+            >
+              {freeingSpace ? "Clearing…" : "Clear library & start fresh"}
+            </button>
+          </div>
+          <p className="text-paper/40 text-xs font-serif">
+            Download first — clearing permanently deletes your audiobooks from the server to free up space.
+          </p>
+        </motion.div>
+      ) : error ? (
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
@@ -397,7 +467,7 @@ export default function ConversionPanel({
         >
           {error}
         </motion.div>
-      )}
+      ) : null}
     </div>
   );
 }
