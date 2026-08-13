@@ -44,7 +44,9 @@ export default function SaveKeyBanner() {
           <p className="label-mono text-gold">✨ Save your restore key</p>
           <p className="mt-1 font-serif text-sm text-paper/70">
             No account needed — this key is how you return to your library later.
-            Save it somewhere safe.
+            Save it somewhere safe. Heads-up: a library with{" "}
+            <span className="text-paper">no activity for 30 days</span> is
+            automatically deleted.
           </p>
         </div>
         <div className="flex items-center gap-3">

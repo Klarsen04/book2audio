@@ -132,6 +132,29 @@ export default function SettingsPage() {
             </label>
           </div>
         </div>
+
+        {/* Data & retention */}
+        <div className="bg-surface p-6">
+          <h3 className="label-mono mb-4 text-paper/50">Your data</h3>
+          <div className="space-y-3 font-serif text-sm leading-relaxed text-paper/60">
+            <p>
+              There are no accounts — your{" "}
+              <span className="text-paper/80">restore key</span> is how you return
+              to your library. Keep it somewhere safe; it&apos;s the only way back.
+            </p>
+            <p className="text-paper/70">
+              To keep storage free for everyone, a library with{" "}
+              <span className="text-gold">no activity for 30 days</span> is
+              automatically deleted — its books and audio are permanently removed.
+              Opening the app or playing something counts as activity and resets
+              the clock.
+            </p>
+            <p className="text-paper/50">
+              Want a copy regardless? Use <span className="text-paper/70">Export</span>{" "}
+              in your library to download all your audiobooks as a .zip.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Save button */}
