@@ -101,15 +101,16 @@ def _split_chapters_into_parts(chapters, max_words: int):
     return parts
 
 
-def _part_worker_loop():
-    """Serially run any parts queued by an auto-split. Runs forever as a daemon
-    thread; one big job at a time keeps the free-tier instance stable."""
+def _conversion_worker_loop():
+    """The single serial conversion worker. Every conversion (standalone uploads
+    and split parts alike) is enqueued and run one at a time here, so the tiny
+    free-tier instance never runs two heavy jobs at once."""
     while True:
         try:
             doc_id, voice = _part_queue.get()
             _run_conversion(doc_id, voice)
         except Exception as e:
-            print(f"[part-worker] error: {e}")
+            print(f"[conversion-worker] error: {e}")
 
 app.include_router(session_router)
 app.include_router(library_router)
@@ -150,8 +151,8 @@ def startup():
     if limits.SESSION_TTL_DAYS > 0:
         Thread(target=_cleanup_loop, daemon=True).start()
 
-    # One serial worker for split-part conversions (queued below).
-    Thread(target=_part_worker_loop, daemon=True).start()
+    # The single serial worker that runs every queued conversion, one at a time.
+    Thread(target=_conversion_worker_loop, daemon=True).start()
 
 
 @app.get("/api/health")
@@ -522,8 +523,8 @@ async def start_conversion(
     if doc_id not in conversion_progress:
         raise HTTPException(status_code=400, detail="Document content expired. Please re-upload.")
 
-    if conversion_progress[doc_id]["status"] == "converting":
-        raise HTTPException(status_code=409, detail="Conversion already in progress")
+    if conversion_progress[doc_id]["status"] in ("converting", "queued"):
+        raise HTTPException(status_code=409, detail="Conversion already in progress or queued")
 
     from app.parsers.extractor import Chapter, BookContent
 
@@ -662,32 +663,32 @@ async def start_conversion(
                 }
                 part_ids.append(part_id)
 
-    # Start Part 1 (or the whole thing if unsplit) immediately, and queue the
-    # rest for the serial worker to pick up when the current one finishes.
-    conversion_progress[doc_id]["status"] = "converting"
-    conversion_progress[doc_id]["progress"] = 0
-
-    with get_db() as conn:
-        conn.execute(
-            "UPDATE documents SET status = 'converting', voice = ? WHERE id = ?",
-            (voice, doc_id),
-        )
-
-    Thread(target=_run_conversion, args=(doc_id, voice), daemon=True).start()
-    for pid in part_ids[1:]:
+    # Enqueue every job (this doc + any split parts) on the single serial worker
+    # so only ONE conversion ever runs at a time. A new upload started while
+    # another conversion is in progress now waits its turn instead of competing
+    # for the tiny free-tier instance (two conversions at once = double the
+    # concurrent TTS calls → throttling/instability). If the worker is idle it
+    # picks the job up immediately, so a lone upload still starts right away.
+    for pid in part_ids:
+        conversion_progress[pid]["status"] = "queued"
+        conversion_progress[pid]["progress"] = 0
         with get_db() as conn:
-            conn.execute("UPDATE documents SET voice = ? WHERE id = ?", (voice, pid))
+            conn.execute(
+                "UPDATE documents SET status = 'queued', voice = ? WHERE id = ?",
+                (voice, pid),
+            )
         _part_queue.put((pid, voice))
-    if len(part_ids) > 1:
-        return {
-            "status": "converting",
-            "job_id": doc_id,
-            "split": True,
-            "total_parts": len(part_ids),
-            "part_ids": part_ids,
-        }
 
-    return {"status": "converting", "job_id": doc_id}
+    # Report queue position so the UI can say "waiting behind N conversion(s)".
+    queue_depth = _part_queue.qsize()
+    return {
+        "status": "queued",
+        "job_id": doc_id,
+        "split": len(part_ids) > 1,
+        "total_parts": len(part_ids),
+        "part_ids": part_ids,
+        "queue_position": max(0, queue_depth - len(part_ids)),
+    }
 
 
 def _run_conversion(doc_id: str, voice: str):
