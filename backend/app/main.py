@@ -46,8 +46,9 @@ def _capture_exception(exc: Exception) -> None:
             import sentry_sdk
 
             sentry_sdk.capture_exception(exc)
-        except Exception:
-            pass
+        except Exception as sentry_err:
+            # Best-effort telemetry: never fail request handling on reporting issues.
+            print(f"[sentry] capture failed: {sentry_err}")
 
 
 app = FastAPI(title="Book2Audio API")
