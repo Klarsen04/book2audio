@@ -40,7 +40,10 @@ TTS_CONCURRENCY = max(1, _int("TTS_CONCURRENCY", 4))
 # intact. 20k words ≈ ~2h of audio, ~10-15 min to synthesize on the free tier.
 MAX_CONVERT_WORDS = max(1000, _int("MAX_CONVERT_WORDS", 20000))
 
-SESSION_TTL_DAYS = _int("SESSION_TTL_DAYS", 90)
+# Data retention: sessions with no activity for this long are deleted (their
+# documents + audio blobs), and the UI tells users about it. Keep the number in
+# the frontend copy in sync (SaveKeyBanner / settings) if you change this.
+SESSION_TTL_DAYS = _int("SESSION_TTL_DAYS", 30)
 
 
 def user_audio_bytes(conn, user_id: str) -> int:
