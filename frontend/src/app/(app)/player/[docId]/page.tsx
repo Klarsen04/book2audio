@@ -255,6 +255,18 @@ export default function PlayerPage() {
     );
   }
 
+  // If this audiobook is one part of an auto-split book, gather its siblings
+  // (ordered by part number) so we can show a Part X-of-N navigator.
+  const currentLibDoc = libraryDocs.find((d) => d.id === docId);
+  const bookParts = currentLibDoc?.part_group
+    ? libraryDocs
+        .filter((d) => d.part_group === currentLibDoc.part_group)
+        .sort((a, b) => (a.part_index ?? 0) - (b.part_index ?? 0))
+    : [];
+  const currentPartIndex = currentLibDoc?.part_index ?? null;
+  const prevPart = bookParts.find((p) => (p.part_index ?? 0) === (currentPartIndex ?? 0) - 1);
+  const nextPart = bookParts.find((p) => (p.part_index ?? 0) === (currentPartIndex ?? 0) + 1);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -323,6 +335,58 @@ export default function PlayerPage() {
           </div>
         </div>
       </div>
+
+      {bookParts.length > 1 && (
+        <div className="bg-surface border border-hairline rounded-sm p-4">
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <span className="label-mono text-paper/70">
+              Part {currentPartIndex} of {bookParts.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={!prevPart || prevPart.status !== "completed"}
+                onClick={() => prevPart && router.push(`/player/${prevPart.id}`)}
+                className="label-mono px-3 py-1.5 rounded-sm border border-hairline text-paper/60 hover:text-paper hover:bg-surface-hover transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ← Prev
+              </button>
+              <button
+                disabled={!nextPart || nextPart.status !== "completed"}
+                onClick={() => nextPart && router.push(`/player/${nextPart.id}`)}
+                className="label-mono px-3 py-1.5 rounded-sm border border-hairline text-paper/60 hover:text-paper hover:bg-surface-hover transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                title={nextPart && nextPart.status !== "completed" ? `Part ${nextPart.part_index} is ${nextPart.status}` : undefined}
+              >
+                Next part →
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {bookParts.map((p) => {
+              const isCurrent = p.id === docId;
+              const done = p.status === "completed";
+              return (
+                <button
+                  key={p.id}
+                  disabled={!isCurrent && !done}
+                  onClick={() => !isCurrent && done && router.push(`/player/${p.id}`)}
+                  title={`Part ${p.part_index}${done ? "" : ` — ${p.status}`}`}
+                  className={`label-mono w-8 h-8 rounded-sm flex items-center justify-center transition-all ${
+                    isCurrent
+                      ? "bg-gold text-ink"
+                      : done
+                      ? "border border-hairline text-paper/70 hover:bg-surface-hover hover:text-paper"
+                      : p.status === "error"
+                      ? "border border-burgundy/30 text-burgundy-soft/60 cursor-not-allowed"
+                      : "border border-hairline text-paper/30 cursor-not-allowed"
+                  }`}
+                >
+                  {p.part_index}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <AudioPlayer
         docId={docId}
