@@ -53,6 +53,7 @@ export default function ConversionPanel({
   const [freeingSpace, setFreeingSpace] = useState(false);
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const convertStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     api.get("/api/voices").then((res) => {
@@ -94,6 +95,7 @@ export default function ConversionPanel({
     setError(null);
     setErrorCode(null);
     setProgress(0);
+    convertStartRef.current = Date.now();
 
     try {
       await api.post(
@@ -415,9 +417,18 @@ export default function ConversionPanel({
             />
           </div>
           <p className="text-xs text-paper/40 mt-3 font-serif">
-            {progress > 0 && progress < 100
-              ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * 0.5)} min remaining`
-              : "This may take a few minutes depending on book length."}
+            {(() => {
+              const start = convertStartRef.current;
+              if (progress > 2 && progress < 100 && start) {
+                // Extrapolate from real elapsed time — accurate once underway.
+                const elapsedMin = (Date.now() - start) / 60000;
+                const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
+                return `About ${remaining} min remaining · large books take a while on the free tier`;
+              }
+              return progress >= 100
+                ? "Finishing up…"
+                : "Estimating… large books can take several minutes.";
+            })()}
           </p>
         </motion.div>
       ) : (

@@ -47,6 +47,9 @@ def _synthesize_chunk_gtts(text: str) -> bytes:
     return buf.read()
 
 
+EDGE_CHUNK_TIMEOUT = int(os.environ.get("EDGE_CHUNK_TIMEOUT", "90"))
+
+
 def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
     import asyncio
     import edge_tts
@@ -59,7 +62,10 @@ def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
             if chunk["type"] == "audio":
                 audio_data += chunk["data"]
 
-    asyncio.run(_stream())
+    # Bound each chunk: a hung edge-tts connection (throttling, dropped socket)
+    # would otherwise block the whole conversion forever. On timeout this raises,
+    # so _synthesize_chunk retries and then falls back to gTTS.
+    asyncio.run(asyncio.wait_for(_stream(), timeout=EDGE_CHUNK_TIMEOUT))
     return audio_data
 
 
