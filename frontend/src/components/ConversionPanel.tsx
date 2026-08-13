@@ -56,6 +56,7 @@ export default function ConversionPanel({
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [freeingSpace, setFreeingSpace] = useState(false);
   const [splitInfo, setSplitInfo] = useState<{ totalParts: number } | null>(null);
+  const [jobStatus, setJobStatus] = useState<string>("");
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const convertStartRef = useRef<number | null>(null);
@@ -82,6 +83,7 @@ export default function ConversionPanel({
         const res = await api.get(`/api/status/${jobId}`);
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
+        setJobStatus(res.data.status);
 
         if (res.data.status === "completed") {
           clearInterval(interval);
@@ -423,36 +425,46 @@ export default function ConversionPanel({
               Large book — splitting into <span className="text-gold">{splitInfo.totalParts} parts</span> so each converts reliably. You can start listening to Part 1 while the rest finishes in the background.
             </div>
           )}
-          <div className="flex justify-between text-sm mb-3">
-            <span className="text-paper/60 font-serif">
-              {splitInfo
-                ? `Converting Part 1 — chapter ${currentChapter} of ${chapters.length}...`
-                : `Converting chapter ${currentChapter} of ${chapters.length}...`}
-            </span>
-            <span className="text-gold font-semibold label-mono">{progress}%</span>
-          </div>
-          <div className="w-full bg-surface rounded-full h-2.5 overflow-hidden">
-            <motion.div
-              className="h-full rounded-full bg-gold"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-          </div>
-          <p className="text-xs text-paper/40 mt-3 font-serif">
-            {(() => {
-              const start = convertStartRef.current;
-              if (progress > 2 && progress < 100 && start) {
-                // Extrapolate from real elapsed time — accurate once underway.
-                const elapsedMin = (Date.now() - start) / 60000;
-                const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
-                return `About ${remaining} min remaining · large books take a while on the free tier`;
-              }
-              return progress >= 100
-                ? "Finishing up…"
-                : "Estimating… large books can take several minutes.";
-            })()}
-          </p>
+          {jobStatus === "queued" ? (
+            <div className="flex items-center gap-3 text-sm font-serif text-paper/70">
+              <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
+              In queue — waiting for the current conversion to finish. This starts
+              automatically; you can leave this page and check the library.
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between text-sm mb-3">
+                <span className="text-paper/60 font-serif">
+                  {splitInfo
+                    ? `Converting Part 1 — chapter ${currentChapter} of ${chapters.length}...`
+                    : `Converting chapter ${currentChapter} of ${chapters.length}...`}
+                </span>
+                <span className="text-gold font-semibold label-mono">{progress}%</span>
+              </div>
+              <div className="w-full bg-surface rounded-full h-2.5 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-gold"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-xs text-paper/40 mt-3 font-serif">
+                {(() => {
+                  const start = convertStartRef.current;
+                  if (progress > 2 && progress < 100 && start) {
+                    // Extrapolate from real elapsed time — accurate once underway.
+                    const elapsedMin = (Date.now() - start) / 60000;
+                    const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
+                    return `About ${remaining} min remaining · large books take a while on the free tier`;
+                  }
+                  return progress >= 100
+                    ? "Finishing up…"
+                    : "Estimating… large books can take several minutes.";
+                })()}
+              </p>
+            </>
+          )}
         </motion.div>
       ) : (
         <motion.button
