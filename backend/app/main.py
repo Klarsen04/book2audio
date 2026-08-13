@@ -125,8 +125,10 @@ def _jobs_ahead_of(doc_id: str) -> int:
             if item[0] == doc_id:
                 break
             ahead += 1
-    except Exception:
-        pass
+    except Exception as e:
+        # Best-effort queue introspection: if it fails, keep the current fallback
+        # (`ahead` based on currently converting jobs) and emit a diagnostic.
+        print(f"Failed to inspect conversion queue for doc {doc_id}: {e}")
     return ahead
 
 
