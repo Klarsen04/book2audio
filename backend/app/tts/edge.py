@@ -6,14 +6,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 VOICES = {
+    # US
     "Matthew": {"id": "en-US-GuyNeural", "gender": "Male", "engine": "edge"},
     "Joanna": {"id": "en-US-JennyNeural", "gender": "Female", "engine": "edge"},
-    "Amy": {"id": "en-GB-SoniaNeural", "gender": "Female", "engine": "edge"},
-    "Brian": {"id": "en-GB-RyanNeural", "gender": "Male", "engine": "edge"},
     "Ruth": {"id": "en-US-AriaNeural", "gender": "Female", "engine": "edge"},
     "Stephen": {"id": "en-US-ChristopherNeural", "gender": "Male", "engine": "edge"},
     "Danielle": {"id": "en-US-MichelleNeural", "gender": "Female", "engine": "edge"},
     "Gregory": {"id": "en-US-EricNeural", "gender": "Male", "engine": "edge"},
+    "Ava": {"id": "en-US-AvaNeural", "gender": "Female", "engine": "edge"},
+    "Andrew": {"id": "en-US-AndrewNeural", "gender": "Male", "engine": "edge"},
+    "Emma": {"id": "en-US-EmmaNeural", "gender": "Female", "engine": "edge"},
+    "Roger": {"id": "en-US-RogerNeural", "gender": "Male", "engine": "edge"},
+    # British
+    "Amy": {"id": "en-GB-SoniaNeural", "gender": "Female", "engine": "edge"},
+    "Brian": {"id": "en-GB-RyanNeural", "gender": "Male", "engine": "edge"},
+    "Libby": {"id": "en-GB-LibbyNeural", "gender": "Female", "engine": "edge"},
+    # Australian
+    "Natasha": {"id": "en-AU-NatashaNeural", "gender": "Female", "engine": "edge"},
+    "William": {"id": "en-AU-WilliamNeural", "gender": "Male", "engine": "edge"},
+    # Canadian
+    "Clara": {"id": "en-CA-ClaraNeural", "gender": "Female", "engine": "edge"},
+    # Irish
+    "Emily": {"id": "en-IE-EmilyNeural", "gender": "Female", "engine": "edge"},
+    # Indian
+    "Neerja": {"id": "en-IN-NeerjaNeural", "gender": "Female", "engine": "edge"},
+    "Prabhat": {"id": "en-IN-PrabhatNeural", "gender": "Male", "engine": "edge"},
 }
 
 MAX_CHARS = 5000
