@@ -100,36 +100,68 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # In-memory progress tracking (not persisted — only for active conversions)
 conversion_progress: dict[str, dict] = {}
 
-# FIFO queue of parts waiting for a free slot. Populated when a large doc is
-# split into multiple sibling conversions; a single background worker picks
-# them up so we never run more than one heavy job at a time on the free tier.
-# Each entry: (doc_id, voice)
-import queue as _queue
-_part_queue: "_queue.Queue[tuple[str, str]]" = _queue.Queue()
+# Per-session conversion queues. Within a session (restore key) conversions run
+# one at a time; different sessions run in parallel up to
+# MAX_CONCURRENT_CONVERSIONS — a global cap that protects the small instance —
+# so one person's (possibly large, multi-part) book doesn't block everyone else.
+# Each session gets an on-demand worker thread that drains its own queue serially;
+# a global semaphore bounds how many are actually converting at once.
+import threading
+from collections import deque as _deque
+
+_session_queues: "dict[str, _deque]" = {}
+_session_workers: set[str] = set()
+_queue_lock = threading.Lock()
+_conversion_slots = threading.Semaphore(limits.MAX_CONCURRENT_CONVERSIONS)
 
 
 def _queue_counts() -> tuple[int, int]:
-    """(currently converting, waiting in queue) from in-memory job state."""
+    """(currently converting, waiting across all session queues)."""
     converting = sum(1 for p in conversion_progress.values() if p.get("status") == "converting")
-    return converting, _part_queue.qsize()
+    with _queue_lock:
+        queued = sum(len(dq) for dq in _session_queues.values())
+    return converting, queued
 
 
 def _jobs_ahead_of(doc_id: str) -> int:
-    """How many conversions will run before this queued doc (the one currently
-    converting, plus anything ahead of it in the queue) — across all sessions,
-    since there's a single global worker."""
-    converting, _ = _queue_counts()
-    ahead = converting
-    try:
-        for item in list(_part_queue.queue):
-            if item[0] == doc_id:
-                break
-            ahead += 1
-    except Exception as e:
-        # Best-effort queue introspection: if it fails, keep the current fallback
-        # (`ahead` based on currently converting jobs) and emit a diagnostic.
-        print(f"Failed to inspect conversion queue for doc {doc_id}: {e}")
-    return ahead
+    """How many of the SAME session's conversions are queued ahead of this doc
+    (its own backlog). Cross-session jobs no longer block it except when the
+    global concurrency cap is momentarily saturated."""
+    with _queue_lock:
+        for dq in _session_queues.values():
+            for i, (qid, _v) in enumerate(list(dq)):
+                if qid == doc_id:
+                    return i
+    return 0
+
+
+def _enqueue_conversion(user_id: str, doc_id: str, voice: str) -> None:
+    """Queue a job for its session, spawning that session's worker if needed."""
+    with _queue_lock:
+        _session_queues.setdefault(user_id, _deque()).append((doc_id, voice))
+        if user_id not in _session_workers:
+            _session_workers.add(user_id)
+            Thread(target=_session_worker, args=(user_id,), daemon=True).start()
+
+
+def _session_worker(user_id: str) -> None:
+    """Drain one session's queue serially. Exits when empty; a fresh worker is
+    spawned on the next enqueue for that session."""
+    while True:
+        with _queue_lock:
+            dq = _session_queues.get(user_id)
+            if not dq:
+                _session_workers.discard(user_id)
+                _session_queues.pop(user_id, None)
+                return
+            doc_id, voice = dq.popleft()
+        # Global cap: at most MAX_CONCURRENT_CONVERSIONS run at once across all
+        # sessions; extra session workers block here until a slot frees.
+        with _conversion_slots:
+            try:
+                _run_conversion(doc_id, voice)
+            except Exception as e:
+                print(f"[conversion-worker] error: {e}")
 
 
 def _split_chapters_into_parts(chapters, max_words: int):
@@ -154,17 +186,6 @@ def _split_chapters_into_parts(chapters, max_words: int):
         parts.append(current)
     return parts
 
-
-def _conversion_worker_loop():
-    """The single serial conversion worker. Every conversion (standalone uploads
-    and split parts alike) is enqueued and run one at a time here, so the tiny
-    free-tier instance never runs two heavy jobs at once."""
-    while True:
-        try:
-            doc_id, voice = _part_queue.get()
-            _run_conversion(doc_id, voice)
-        except Exception as e:
-            print(f"[conversion-worker] error: {e}")
 
 app.include_router(session_router)
 app.include_router(library_router)
@@ -205,8 +226,8 @@ def startup():
     if limits.SESSION_TTL_DAYS > 0:
         Thread(target=_cleanup_loop, daemon=True).start()
 
-    # The single serial worker that runs every queued conversion, one at a time.
-    Thread(target=_conversion_worker_loop, daemon=True).start()
+    # Conversion workers are spawned per-session on demand (see _enqueue_conversion),
+    # so there's no global worker to start here.
 
 
 @app.get("/api/health")
@@ -787,12 +808,10 @@ async def start_conversion(
                 }
                 part_ids.append(part_id)
 
-    # Enqueue every job (this doc + any split parts) on the single serial worker
-    # so only ONE conversion ever runs at a time. A new upload started while
-    # another conversion is in progress now waits its turn instead of competing
-    # for the tiny free-tier instance (two conversions at once = double the
-    # concurrent TTS calls → throttling/instability). If the worker is idle it
-    # picks the job up immediately, so a lone upload still starts right away.
+    # Enqueue every job (this doc + any split parts) on THIS session's queue.
+    # Within the session they run one at a time; other sessions convert in
+    # parallel (up to MAX_CONCURRENT_CONVERSIONS), so a big multi-part book no
+    # longer blocks other people. A lone job on an idle instance starts at once.
     for pid in part_ids:
         conversion_progress[pid]["status"] = "queued"
         conversion_progress[pid]["progress"] = 0
@@ -801,17 +820,14 @@ async def start_conversion(
                 "UPDATE documents SET status = 'queued', voice = ? WHERE id = ?",
                 (voice, pid),
             )
-        _part_queue.put((pid, voice))
+        _enqueue_conversion(user["id"], pid, voice)
 
-    # Report queue position so the UI can say "waiting behind N conversion(s)".
-    queue_depth = _part_queue.qsize()
     return {
         "status": "queued",
         "job_id": doc_id,
         "split": len(part_ids) > 1,
         "total_parts": len(part_ids),
         "part_ids": part_ids,
-        "queue_position": max(0, queue_depth - len(part_ids)),
     }
 
 
