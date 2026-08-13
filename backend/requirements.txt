@@ -19,3 +19,5 @@ defusedxml>=0.7.1
 libsql-experimental>=0.0.55
 # Optional paid TTS. Only imported when TTS_PROVIDER=openai (needs OPENAI_API_KEY).
 openai>=1.40.0
+# Optional error monitoring. Only initialized when SENTRY_DSN is set.
+sentry-sdk[fastapi]>=2.0.0

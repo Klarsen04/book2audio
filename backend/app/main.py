@@ -21,6 +21,36 @@ from app.session_router import router as session_router
 from app.library.router import router as library_router
 from app.playback.router import router as playback_router
 
+# Optional error monitoring. When SENTRY_DSN is set, unhandled request errors and
+# the conversion failures we explicitly capture are reported to Sentry — so we
+# can see *why* a conversion failed instead of debugging blind.
+_SENTRY_ON = False
+if os.environ.get("SENTRY_DSN"):
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=os.environ["SENTRY_DSN"],
+            traces_sample_rate=0.0,
+            send_default_pii=False,
+        )
+        _SENTRY_ON = True
+    except Exception as e:
+        print(f"[sentry] init failed: {e}")
+
+
+def _capture_exception(exc: Exception) -> None:
+    """Report an exception to Sentry if configured; no-op otherwise."""
+    if _SENTRY_ON:
+        try:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception(exc)
+        except Exception as sentry_err:
+            # Best-effort telemetry: never fail request handling on reporting issues.
+            print(f"[sentry] capture failed: {sentry_err}")
+
+
 app = FastAPI(title="Book2Audio API")
 
 allowed_origins = os.environ.get(
@@ -314,11 +344,62 @@ def _url_is_public(url: str) -> bool:
         return False
 
 
+def _firecrawl_scrape(url: str) -> str | None:
+    """
+    Fetch clean page text via Firecrawl (free tier) — handles JavaScript-rendered
+    and bot-protected pages that a plain request can't. Returns markdown text, or
+    None when no FIRECRAWL_API_KEY is set or the call fails (caller falls back).
+    """
+    key = os.environ.get("FIRECRAWL_API_KEY")
+    if not key:
+        return None
+    try:
+        resp = httpx.post(
+            "https://api.firecrawl.dev/v1/scrape",
+            headers={"Authorization": f"Bearer {key}"},
+            json={"url": url, "formats": ["markdown"], "onlyMainContent": True},
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        return (resp.json().get("data") or {}).get("markdown") or None
+    except Exception as e:
+        print(f"[firecrawl] scrape failed: {e}")
+        return None
+
+
+def _strip_markdown(md: str) -> str:
+    """Light markdown → plain text so TTS doesn't read '###' / '**' aloud."""
+    import re
+
+    t = re.sub(r"`{1,3}", "", md)
+    t = re.sub(r"^\s{0,3}#{1,6}\s*", "", t, flags=re.M)      # headings
+    t = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", t)                 # images
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)             # links → text
+    t = re.sub(r"\*\*|__|\*|_", "", t)                          # bold/italic
+    t = re.sub(r"^\s*>\s?", "", t, flags=re.M)                 # blockquotes
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
+def _content_from_markdown(md: str) -> BookContent:
+    text = _strip_markdown(md)
+    first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "Untitled")
+    return BookContent(
+        title=(first[:120] or "Untitled"),
+        chapters=[Chapter(title="Full Text", text=text)],
+        word_count=len(text.split()),
+    )
+
+
 @app.post("/api/upload-url")
 async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depends(get_session)):
     check_rate_limit(request, "upload", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
     if not _url_is_public(body.url):
         raise HTTPException(status_code=400, detail="Please provide a valid public http(s) URL.")
+
+    content = None
+    content_type = ""
+    raw_bytes = b""
     try:
         # Send browser-like headers — many sites 403 requests with no User-Agent.
         async with httpx.AsyncClient(
@@ -326,55 +407,68 @@ async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depe
         ) as client:
             resp = await client.get(body.url)
             resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        code = e.response.status_code
-        if code in (401, 403):
+        content_type = resp.headers.get("content-type", "")
+        raw_bytes = resp.content
+        if len(raw_bytes) > limits.MAX_UPLOAD_BYTES:
             raise HTTPException(
-                status_code=400,
-                detail=(
-                    "That site blocks automated access or requires signing in. "
-                    "Open the page, copy the text, and use “Paste Text” instead "
-                    "— or upload the file directly."
-                ),
+                status_code=413,
+                detail={
+                    "code": "file_too_large",
+                    "message": f"That page/file is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
+                },
             )
-        raise HTTPException(status_code=400, detail=f"Couldn't fetch that URL (HTTP {code}).")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Couldn't fetch that URL: {str(e)}")
-
-    content_type = resp.headers.get("content-type", "")
-    raw_bytes = resp.content
-    if len(raw_bytes) > limits.MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "code": "file_too_large",
-                "message": f"That page/file is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
-            },
-        )
-
-    try:
-        if "application/pdf" in content_type or body.url.lower().endswith(".pdf"):
-            content = extract_from_pdf(raw_bytes)
+        # Blocked / JS-only / network error → try Firecrawl (handles bot-protected
+        # and JavaScript-rendered pages) before giving up.
+        md = _firecrawl_scrape(body.url)
+        if md:
+            content = _content_from_markdown(md)
         else:
-            # Treat as HTML: extract text from paragraphs
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(raw_bytes, "html.parser")
-            title = soup.title.string.strip() if soup.title and soup.title.string else "Untitled"
-            paragraphs = soup.find_all("p")
-            text = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
-            if not text.strip():
-                # Fallback: get all visible text
-                text = soup.get_text(separator="\n", strip=True)
-            content = BookContent(
-                title=title,
-                chapters=[Chapter(title="Full Text", text=text.strip())],
-                word_count=len(text.split()),
-            )
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Failed to parse content: {str(e)}")
+            code = getattr(getattr(e, "response", None), "status_code", None)
+            if code in (401, 403):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "That site blocks automated access or requires signing in. "
+                        "Open the page, copy the text, and use “Paste Text” instead "
+                        "— or upload the file directly."
+                    ),
+                )
+            raise HTTPException(status_code=400, detail=f"Couldn't fetch that URL: {str(e)}")
 
-    # Pages that load their content with JavaScript (or hide it behind a login/
-    # paywall, like many web-novel sites) come back as an near-empty shell.
+    if content is None:
+        try:
+            if "application/pdf" in content_type or body.url.lower().endswith(".pdf"):
+                content = extract_from_pdf(raw_bytes)
+            else:
+                # Treat as HTML: extract text from paragraphs
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(raw_bytes, "html.parser")
+                title = soup.title.string.strip() if soup.title and soup.title.string else "Untitled"
+                paragraphs = soup.find_all("p")
+                text = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+                if not text.strip():
+                    # Fallback: get all visible text
+                    text = soup.get_text(separator="\n", strip=True)
+                content = BookContent(
+                    title=title,
+                    chapters=[Chapter(title="Full Text", text=text.strip())],
+                    word_count=len(text.split()),
+                )
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to parse content: {str(e)}")
+
+    # Pages that load content with JavaScript (or hide it behind a login/paywall,
+    # like many web-novel sites) come back as a near-empty shell — try Firecrawl
+    # as a last resort before telling the user to paste the text.
+    if content.word_count < 30:
+        md = _firecrawl_scrape(body.url)
+        if md:
+            fc_content = _content_from_markdown(md)
+            if fc_content.word_count >= 30:
+                content = fc_content
     if content.word_count < 30:
         raise HTTPException(
             status_code=422,
@@ -795,6 +889,7 @@ def _run_conversion(doc_id: str, voice: str):
         del progress["content"]
 
     except Exception as e:
+        _capture_exception(e)  # report to Sentry (if configured) with full traceback
         with get_db() as conn:
             conn.execute("UPDATE documents SET status = 'error' WHERE id = ?", (doc_id,))
         progress["status"] = "error"
