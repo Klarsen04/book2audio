@@ -30,6 +30,7 @@ const formatIcons: Record<string, string> = {
 
 const statusConfig: Record<string, { bg: string; text: string; dot: string }> = {
   uploaded: { bg: "bg-gold/10", text: "text-gold-soft", dot: "bg-gold-soft" },
+  queued: { bg: "bg-paper/10", text: "text-paper/60", dot: "bg-paper/40" },
   converting: { bg: "bg-gold/10", text: "text-gold-soft", dot: "bg-gold-soft animate-pulse" },
   completed: { bg: "bg-gold/10", text: "text-gold", dot: "bg-gold" },
   error: { bg: "bg-burgundy/15", text: "text-burgundy-soft", dot: "bg-burgundy-soft" },
@@ -152,9 +153,17 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
           >
             Convert
           </Link>
+        ) : doc.status === "converting" || doc.status === "queued" ? (
+          <Link
+            href={`/convert?doc=${doc.id}`}
+            className="label-mono flex-1 text-center py-2 rounded-sm bg-surface border border-hairline text-paper/60 hover:bg-surface-hover hover:text-paper transition-all"
+            title="View conversion progress"
+          >
+            {doc.status === "converting" ? "Converting… ›" : "Queued ›"}
+          </Link>
         ) : (
           <span className="label-mono flex-1 text-center py-2 text-paper/40">
-            {doc.status === "converting" ? "Converting..." : "Failed"}
+            Failed
           </span>
         )}
         {doc.status === "completed" && (

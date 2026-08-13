@@ -13,7 +13,9 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 async def list_documents(user: dict = Depends(optional_session)):
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, filename, title, format, chapters_json, total_word_count, status, voice, audio_duration, created_at, converted_at FROM documents WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, filename, title, format, chapters_json, total_word_count, status, voice, "
+            "audio_duration, created_at, converted_at, part_group, part_index FROM documents "
+            "WHERE user_id = ? ORDER BY created_at DESC, part_index ASC",
             (user["id"],),
         ).fetchall()
 
@@ -31,7 +33,9 @@ async def list_documents(user: dict = Depends(optional_session)):
 async def get_document(doc_id: str, user: dict = Depends(optional_session)):
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, filename, title, format, chapters_json, total_word_count, status, voice, audio_duration, created_at, converted_at FROM documents WHERE id = ? AND user_id = ?",
+            "SELECT id, filename, title, format, chapters_json, total_word_count, status, voice, "
+            "audio_duration, created_at, converted_at, part_group, part_index FROM documents "
+            "WHERE id = ? AND user_id = ?",
             (doc_id, user["id"]),
         ).fetchone()
 
