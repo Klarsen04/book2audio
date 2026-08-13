@@ -145,8 +145,10 @@ class _LibsqlConnection:
             # would have observed the error anyway).
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as close_error:
+                # Best-effort close during stale-stream recovery; failure here is
+                # non-fatal because we immediately reopen a fresh connection.
+                print(f"Warning: failed to close stale libsql connection: {close_error}")
             self._conn = _reopen_libsql()
             return getattr(self._conn, method_name)(*args, **kwargs)
 
