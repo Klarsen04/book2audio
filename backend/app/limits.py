@@ -29,6 +29,11 @@ USER_QUOTA_BYTES = USER_QUOTA_MB * 1024 * 1024
 RATE_LIMIT_UPLOADS_PER_HOUR = _int("RATE_LIMIT_UPLOADS_PER_HOUR", 30)
 RATE_LIMIT_CONVERSIONS_PER_HOUR = _int("RATE_LIMIT_CONVERSIONS_PER_HOUR", 10)
 
+# How many chapters to synthesize at once. Synthesis is network-bound (waiting
+# on the TTS service), so a few in parallel is a near-linear speedup. Keep it
+# modest so free TTS endpoints (edge-tts) don't throttle; set to 1 to disable.
+TTS_CONCURRENCY = max(1, _int("TTS_CONCURRENCY", 4))
+
 SESSION_TTL_DAYS = _int("SESSION_TTL_DAYS", 90)
 
 

@@ -529,28 +529,42 @@ def _run_conversion(doc_id: str, voice: str):
         chapter_start_times = []  # exact start time in seconds for each chapter
         cumulative = 0.0
 
-        for i, chapter in enumerate(content.chapters):
-            progress["current_chapter"] = i + 1
-            chapter_start_times.append(cumulative)
+        # Synthesize chapters concurrently and assemble in order. Synthesis is
+        # network-bound (waiting on the TTS service), so running a few chapters
+        # at once is a near-linear speedup even on a small CPU. Concurrency is
+        # bounded by TTS_CONCURRENCY to avoid tripping free-TTS throttling.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            def on_chunk_progress(current, total, _i=i):
-                chapter_progress = (current / total) * 100
-                overall = ((_i * 100) + chapter_progress) / total_chapters
-                progress["progress"] = int(overall)
-
-            audio_bytes = synthesize(chapter.text, voice, on_progress=on_chunk_progress)
-            # Skip chapters that produced no audio — empty/whitespace text is
-            # common in EPUB spine items (cover, nav, blank pages). Writing a
-            # 0-byte file would make ffmpeg's concat fail on the whole book. The
-            # start_time recorded above stays aligned (it points at the next
-            # real audio), so chapter navigation still works.
-            if not audio_bytes:
-                continue
+        def _synthesize_chapter_to_file(i, chapter):
+            audio = synthesize(chapter.text, voice)
+            # Empty/whitespace chapters (common EPUB cover/nav) → no file.
+            if not audio:
+                return i, None
             ch_path = os.path.join(tmpdir, f"ch_{i:05d}.mp3")
             with open(ch_path, "wb") as f:
-                f.write(audio_bytes)
-            del audio_bytes  # free the compressed bytes before the next chapter
+                f.write(audio)
+            return i, ch_path
 
+        results = {}
+        done = 0
+        with ThreadPoolExecutor(max_workers=limits.TTS_CONCURRENCY) as pool:
+            futures = [
+                pool.submit(_synthesize_chapter_to_file, i, ch)
+                for i, ch in enumerate(content.chapters)
+            ]
+            for fut in as_completed(futures):
+                idx, ch_path = fut.result()  # re-raises a chapter's synth failure
+                results[idx] = ch_path
+                done += 1
+                progress["current_chapter"] = done
+                progress["progress"] = int(done / total_chapters * 100)
+
+        # Assemble in the original chapter order and record exact start times.
+        for i in range(len(content.chapters)):
+            chapter_start_times.append(cumulative)
+            ch_path = results.get(i)
+            if not ch_path:
+                continue  # empty chapter — keep start_time aligned to next audio
             chapter_files.append(ch_path)
             cumulative += mp3_duration(ch_path)
 
