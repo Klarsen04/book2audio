@@ -135,14 +135,14 @@ def _cleanup_loop():
 def startup():
     init_db()
 
-    # Conversion progress lives only in memory, so any doc still marked
-    # 'converting' at startup is a job the previous process lost to a
-    # restart/redeploy — it can never finish. Mark it errored so the UI stops
-    # spinning and the user can retry instead of waiting forever.
+    # Conversion progress + the split-part queue live only in memory, so any doc
+    # still marked 'converting' or 'queued' at startup is a job the previous
+    # process lost to a restart/redeploy — it can never finish. Mark them errored
+    # so the UI stops spinning and the user can retry instead of waiting forever.
     try:
         with get_db() as conn:
             conn.execute(
-                "UPDATE documents SET status = 'error' WHERE status = 'converting'"
+                "UPDATE documents SET status = 'error' WHERE status IN ('converting', 'queued')"
             )
     except Exception as e:
         print(f"[startup] could not reset interrupted conversions: {e}")
@@ -612,6 +612,7 @@ async def start_conversion(
         parts = _split_chapters_into_parts(content.chapters, limits.MAX_CONVERT_WORDS)
         total_parts = len(parts)
         base_title = content.title
+        group_id = str(uuid.uuid4())  # links all parts so they order/chain together
         for i, part_chapters in enumerate(parts):
             part_title = f"{base_title} — Part {i + 1} of {total_parts}"
             part_words = sum(len(ch.text.split()) for ch in part_chapters)
@@ -625,11 +626,14 @@ async def start_conversion(
 
             if i == 0:
                 # Reuse the caller's original doc for Part 1 so their existing
-                # progress-polling job_id keeps working.
+                # progress-polling job_id keeps working. Align its created_at to
+                # now so all parts share a timestamp and group together, and tag
+                # it as part 1 of the group.
                 with get_db() as conn:
                     conn.execute(
-                        "UPDATE documents SET title = ?, chapters_json = ?, total_word_count = ? WHERE id = ?",
-                        (part_title, json.dumps(part_meta), part_words, doc_id),
+                        "UPDATE documents SET title = ?, chapters_json = ?, total_word_count = ?, "
+                        "part_group = ?, part_index = ?, created_at = datetime('now') WHERE id = ?",
+                        (part_title, json.dumps(part_meta), part_words, group_id, 1, doc_id),
                     )
                 conversion_progress[doc_id]["content"] = part_content
                 conversion_progress[doc_id]["total_chapters"] = len(part_chapters)
@@ -640,11 +644,13 @@ async def start_conversion(
                 with get_db() as conn:
                     conn.execute(
                         """INSERT INTO documents (id, user_id, filename, title, file_size, format,
-                                                   chapters_json, total_word_count, status)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')""",
+                                                   chapters_json, total_word_count, status,
+                                                   part_group, part_index)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)""",
                         (
                             part_id, user["id"], f"{base_title} (part {i + 1}).part",
                             part_title, 0, "part", json.dumps(part_meta), part_words,
+                            group_id, i + 1,
                         ),
                     )
                 conversion_progress[part_id] = {

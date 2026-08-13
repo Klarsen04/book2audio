@@ -235,3 +235,9 @@ def init_db():
         if "audio_bytes" not in doc_cols:
             # Size of the stored audio, used for the per-session storage quota.
             conn.execute("ALTER TABLE documents ADD COLUMN audio_bytes INTEGER NOT NULL DEFAULT 0")
+        if "part_group" not in doc_cols:
+            # When a large book is auto-split, all its parts share a part_group
+            # and carry a 1-based part_index so the library and player can order
+            # and chain them (Part 1 → 2 → 3 …) regardless of created_at.
+            conn.execute("ALTER TABLE documents ADD COLUMN part_group TEXT")
+            conn.execute("ALTER TABLE documents ADD COLUMN part_index INTEGER")

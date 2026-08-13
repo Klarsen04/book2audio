@@ -12,6 +12,9 @@ interface Props {
   wordCount: number;
   onConversionComplete: () => void;
   onBack: () => void;
+  // When opened for a doc that's already converting/queued, jump straight to
+  // the progress view and start polling (no re-setup).
+  startConverting?: boolean;
 }
 
 interface Voice {
@@ -35,6 +38,7 @@ export default function ConversionPanel({
   wordCount,
   onConversionComplete,
   onBack,
+  startConverting = false,
 }: Props) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState(() => {
@@ -55,6 +59,14 @@ export default function ConversionPanel({
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const convertStartRef = useRef<number | null>(null);
+
+  // Opened for an already-running job → jump straight to the progress view.
+  useEffect(() => {
+    if (startConverting) {
+      setIsConverting(true);
+      convertStartRef.current = Date.now();
+    }
+  }, [startConverting]);
 
   useEffect(() => {
     api.get("/api/voices").then((res) => {

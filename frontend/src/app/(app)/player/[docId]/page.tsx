@@ -35,6 +35,8 @@ interface LibraryDoc {
   id: string;
   title: string;
   status: string;
+  part_group?: string | null;
+  part_index?: number | null;
 }
 
 export default function PlayerPage() {
@@ -74,6 +76,19 @@ export default function PlayerPage() {
 
   const getNextCompletedDoc = useCallback((): LibraryDoc | null => {
     if (libraryDocs.length === 0) return null;
+    const current = libraryDocs.find((doc) => doc.id === docId);
+
+    // If this is part of a split book, the next item is the next part in
+    // sequence — never an earlier part. Only offer it once it's ready.
+    if (current?.part_group && current.part_index != null) {
+      const nextPart = libraryDocs.find(
+        (d) => d.part_group === current.part_group && d.part_index === current.part_index! + 1
+      );
+      if (nextPart) return nextPart.status === "completed" ? nextPart : null;
+      return null; // last part of the book
+    }
+
+    // Otherwise, the next completed doc in the list.
     const currentIndex = libraryDocs.findIndex((doc) => doc.id === docId);
     if (currentIndex === -1) return null;
     for (let i = currentIndex + 1; i < libraryDocs.length; i++) {
