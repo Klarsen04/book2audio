@@ -105,32 +105,77 @@ class _LibsqlCursor:
         return self._cursor.close()
 
 
+# libSQL/Turso can invalidate a connection's underlying "stream" between calls
+# (idle timeout, brief network blip). The next call then raises a Hrana error
+# like `stream not found`. These are safe to retry once with a fresh underlying
+# connection — the caller sees a clean call.
+_STALE_STREAM_MARKERS = ("stream not found", "stream is closed", "stream expired")
+
+
+def _is_stale_stream_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(m in msg for m in _STALE_STREAM_MARKERS)
+
+
+def _reopen_libsql():
+    import libsql_experimental as libsql
+    fresh = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+    fresh.execute("PRAGMA foreign_keys=ON")
+    return fresh
+
+
 class _LibsqlConnection:
-    """Wraps a libsql connection so it quacks like sqlite3 (row-by-name)."""
+    """Wraps a libsql connection so it quacks like sqlite3 (row-by-name), and
+    heals from Turso 'stream not found' errors with one silent re-open."""
 
     def __init__(self, conn):
         self._conn = conn
         # Accept assignment for API parity; the wrapper always yields _LibsqlRow.
         self.row_factory = None
 
+    def _call(self, method_name, *args, **kwargs):
+        try:
+            return getattr(self._conn, method_name)(*args, **kwargs)
+        except Exception as e:
+            if not _is_stale_stream_error(e):
+                raise
+            # The underlying stream has been closed by the server — reconnect
+            # once and retry. The retry only re-executes the current call, so
+            # any prior in-flight transaction is lost (matches how the caller
+            # would have observed the error anyway).
+            try:
+                self._conn.close()
+            except Exception as close_error:
+                # Best-effort close during stale-stream recovery; failure here is
+                # non-fatal because we immediately reopen a fresh connection.
+                print(f"Warning: failed to close stale libsql connection: {close_error}")
+            self._conn = _reopen_libsql()
+            return getattr(self._conn, method_name)(*args, **kwargs)
+
     def execute(self, *args, **kwargs):
-        return _LibsqlCursor(self._conn.execute(*args, **kwargs))
+        return _LibsqlCursor(self._call("execute", *args, **kwargs))
 
     def executemany(self, *args, **kwargs):
-        return _LibsqlCursor(self._conn.executemany(*args, **kwargs))
+        return _LibsqlCursor(self._call("executemany", *args, **kwargs))
 
     def executescript(self, *args, **kwargs):
-        self._conn.executescript(*args, **kwargs)
+        self._call("executescript", *args, **kwargs)
         return self
 
     def cursor(self):
-        return _LibsqlCursor(self._conn.cursor())
+        return _LibsqlCursor(self._call("cursor"))
 
     def commit(self):
-        return self._conn.commit()
+        return self._call("commit")
 
     def rollback(self):
-        return self._conn.rollback()
+        try:
+            return self._conn.rollback()
+        except Exception as e:
+            if _is_stale_stream_error(e):
+                # Nothing to roll back on a dead stream; treat as a no-op.
+                return None
+            raise
 
     def close(self):
         return self._conn.close()
@@ -159,10 +204,20 @@ def get_db():
         yield conn
         conn.commit()
     except Exception:
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            # If rollback itself fails (e.g. the stream was closed under us),
+            # don't let that mask the original exception.
+            pass
         raise
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            # Best-effort cleanup: ignore close failures so they don't mask
+            # an exception already being propagated from the context body.
+            pass
 
 
 def init_db():
