@@ -108,6 +108,28 @@ import queue as _queue
 _part_queue: "_queue.Queue[tuple[str, str]]" = _queue.Queue()
 
 
+def _queue_counts() -> tuple[int, int]:
+    """(currently converting, waiting in queue) from in-memory job state."""
+    converting = sum(1 for p in conversion_progress.values() if p.get("status") == "converting")
+    return converting, _part_queue.qsize()
+
+
+def _jobs_ahead_of(doc_id: str) -> int:
+    """How many conversions will run before this queued doc (the one currently
+    converting, plus anything ahead of it in the queue) — across all sessions,
+    since there's a single global worker."""
+    converting, _ = _queue_counts()
+    ahead = converting
+    try:
+        for item in list(_part_queue.queue):
+            if item[0] == doc_id:
+                break
+            ahead += 1
+    except Exception:
+        pass
+    return ahead
+
+
 def _split_chapters_into_parts(chapters, max_words: int):
     """
     Pack chapters into parts, each part's total word count staying under
@@ -194,7 +216,13 @@ async def health_check():
     except ImportError:
         pass
     from app.tts.edge import USE_EDGE
-    return {"status": "ok", "has_gtts": has_gtts, "use_edge": USE_EDGE}
+    converting, queued = _queue_counts()
+    return {
+        "status": "ok",
+        "has_gtts": has_gtts,
+        "use_edge": USE_EDGE,
+        "queue": {"converting": converting, "queued": queued},
+    }
 
 
 @app.get("/api/voices")
@@ -928,6 +956,7 @@ async def get_status(doc_id: str, user: dict = Depends(optional_session)):
         "current_chapter": progress.get("current_chapter", 0),
         "total_chapters": progress.get("total_chapters", 0),
         "error": progress.get("error"),
+        "queue_ahead": _jobs_ahead_of(doc_id) if progress["status"] == "queued" else 0,
     }
 
 
