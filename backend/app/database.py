@@ -215,6 +215,8 @@ def get_db():
         try:
             conn.close()
         except Exception:
+            # Best-effort cleanup: ignore close failures so they don't mask
+            # an exception already being propagated from the context body.
             pass
 
 
