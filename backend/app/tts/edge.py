@@ -47,6 +47,9 @@ def _synthesize_chunk_gtts(text: str) -> bytes:
     return buf.read()
 
 
+EDGE_CHUNK_TIMEOUT = int(os.environ.get("EDGE_CHUNK_TIMEOUT", "90"))
+
+
 def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
     import asyncio
     import edge_tts
@@ -59,11 +62,14 @@ def _synthesize_chunk_edge(text: str, voice_id: str) -> bytes:
             if chunk["type"] == "audio":
                 audio_data += chunk["data"]
 
-    asyncio.run(_stream())
+    # Bound each chunk: a hung edge-tts connection (throttling, dropped socket)
+    # would otherwise block the whole conversion forever. On timeout this raises,
+    # so _synthesize_chunk retries and then falls back to gTTS.
+    asyncio.run(asyncio.wait_for(_stream(), timeout=EDGE_CHUNK_TIMEOUT))
     return audio_data
 
 
-def _synthesize_chunk(text: str, voice_id: str, attempts: int = 3) -> bytes:
+def _synthesize_chunk(text: str, voice_id: str, attempts: int = 4) -> bytes:
     """
     Synthesize one chunk, retrying transient failures with backoff. Tries
     edge-tts first when enabled, then gTTS. Returns b"" only after all attempts
@@ -83,9 +89,10 @@ def _synthesize_chunk(text: str, voice_id: str, attempts: int = 3) -> bytes:
                 return out
         except Exception as e:
             logger.warning(f"gTTS chunk failed (attempt {attempt + 1}): {e}")
-        # Back off before retrying — helps transient errors / light rate-limits.
+        # Exponential backoff before retrying (pattern from epub_to_audiobook) —
+        # rides out transient errors and light rate-limits.
         if attempt < attempts - 1:
-            time.sleep(1.5 * (attempt + 1))
+            time.sleep(min(30, 2 ** attempt))
     return b""
 
 

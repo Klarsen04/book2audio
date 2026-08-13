@@ -18,6 +18,11 @@ services:
       # if edge ever fails.
       - key: FORCE_EDGE_TTS
         value: "true"
+      # Synthesize this many chapters in parallel (synthesis waits on the TTS
+      # network, so this is a near-linear speedup). Lower to 1 if edge-tts
+      # starts throttling; raise cautiously for more speed.
+      - key: TTS_CONCURRENCY
+        value: "4"
       # Signs the session cookie. Keep STABLE across deploys (see
       # DEPLOYMENT_PERSISTENCE.md) — generateValue is fine as long as Render
       # keeps it, which it does after first deploy.

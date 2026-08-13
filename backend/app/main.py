@@ -70,6 +70,47 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # In-memory progress tracking (not persisted — only for active conversions)
 conversion_progress: dict[str, dict] = {}
 
+# FIFO queue of parts waiting for a free slot. Populated when a large doc is
+# split into multiple sibling conversions; a single background worker picks
+# them up so we never run more than one heavy job at a time on the free tier.
+# Each entry: (doc_id, voice)
+import queue as _queue
+_part_queue: "_queue.Queue[tuple[str, str]]" = _queue.Queue()
+
+
+def _split_chapters_into_parts(chapters, max_words: int):
+    """
+    Pack chapters into parts, each part's total word count staying under
+    `max_words`. Chapter boundaries are preserved (so playback stays natural).
+    A single chapter that exceeds max_words on its own goes into its own part.
+    Returns a list of chapter lists.
+    """
+    parts: list[list] = []
+    current: list = []
+    current_words = 0
+    for ch in chapters:
+        wc = len(ch.text.split())
+        if current and current_words + wc > max_words:
+            parts.append(current)
+            current, current_words = [ch], wc
+        else:
+            current.append(ch)
+            current_words += wc
+    if current:
+        parts.append(current)
+    return parts
+
+
+def _part_worker_loop():
+    """Serially run any parts queued by an auto-split. Runs forever as a daemon
+    thread; one big job at a time keeps the free-tier instance stable."""
+    while True:
+        try:
+            doc_id, voice = _part_queue.get()
+            _run_conversion(doc_id, voice)
+        except Exception as e:
+            print(f"[part-worker] error: {e}")
+
 app.include_router(session_router)
 app.include_router(library_router)
 app.include_router(playback_router)
@@ -108,6 +149,9 @@ def startup():
 
     if limits.SESSION_TTL_DAYS > 0:
         Thread(target=_cleanup_loop, daemon=True).start()
+
+    # One serial worker for split-part conversions (queued below).
+    Thread(target=_part_worker_loop, daemon=True).start()
 
 
 @app.get("/api/health")
@@ -556,6 +600,64 @@ async def start_conversion(
                     (json.dumps(chapters_meta), (cj[1] or 0) + len(intro_text.split()), doc_id),
                 )
 
+    # If the doc is larger than the per-conversion cap, split it into sibling
+    # documents along chapter boundaries and queue the tail — each part is a
+    # separate, playable audiobook. Keeps every job small enough to reliably
+    # finish on the free tier (and if Part 2 fails, Parts 1/3 aren't lost).
+    content = conversion_progress[doc_id]["content"]
+    part_ids: list[str] = [doc_id]
+    if content.word_count > limits.MAX_CONVERT_WORDS and len(content.chapters) > 1:
+        from app.parsers.extractor import BookContent
+
+        parts = _split_chapters_into_parts(content.chapters, limits.MAX_CONVERT_WORDS)
+        total_parts = len(parts)
+        base_title = content.title
+        for i, part_chapters in enumerate(parts):
+            part_title = f"{base_title} — Part {i + 1} of {total_parts}"
+            part_words = sum(len(ch.text.split()) for ch in part_chapters)
+            part_content = BookContent(
+                title=part_title, chapters=part_chapters, word_count=part_words
+            )
+            part_meta = [
+                {"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text}
+                for ch in part_chapters
+            ]
+
+            if i == 0:
+                # Reuse the caller's original doc for Part 1 so their existing
+                # progress-polling job_id keeps working.
+                with get_db() as conn:
+                    conn.execute(
+                        "UPDATE documents SET title = ?, chapters_json = ?, total_word_count = ? WHERE id = ?",
+                        (part_title, json.dumps(part_meta), part_words, doc_id),
+                    )
+                conversion_progress[doc_id]["content"] = part_content
+                conversion_progress[doc_id]["total_chapters"] = len(part_chapters)
+            else:
+                # Create a sibling document and stash its content in memory so
+                # _run_conversion can synthesize it when the worker picks it up.
+                part_id = str(uuid.uuid4())
+                with get_db() as conn:
+                    conn.execute(
+                        """INSERT INTO documents (id, user_id, filename, title, file_size, format,
+                                                   chapters_json, total_word_count, status)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued')""",
+                        (
+                            part_id, user["id"], f"{base_title} (part {i + 1}).part",
+                            part_title, 0, "part", json.dumps(part_meta), part_words,
+                        ),
+                    )
+                conversion_progress[part_id] = {
+                    "content": part_content,
+                    "status": "queued",
+                    "progress": 0,
+                    "current_chapter": 0,
+                    "total_chapters": len(part_chapters),
+                }
+                part_ids.append(part_id)
+
+    # Start Part 1 (or the whole thing if unsplit) immediately, and queue the
+    # rest for the serial worker to pick up when the current one finishes.
     conversion_progress[doc_id]["status"] = "converting"
     conversion_progress[doc_id]["progress"] = 0
 
@@ -565,8 +667,19 @@ async def start_conversion(
             (voice, doc_id),
         )
 
-    thread = Thread(target=_run_conversion, args=(doc_id, voice))
-    thread.start()
+    Thread(target=_run_conversion, args=(doc_id, voice), daemon=True).start()
+    for pid in part_ids[1:]:
+        with get_db() as conn:
+            conn.execute("UPDATE documents SET voice = ? WHERE id = ?", (voice, pid))
+        _part_queue.put((pid, voice))
+    if len(part_ids) > 1:
+        return {
+            "status": "converting",
+            "job_id": doc_id,
+            "split": True,
+            "total_parts": len(part_ids),
+            "part_ids": part_ids,
+        }
 
     return {"status": "converting", "job_id": doc_id}
 
@@ -574,6 +687,20 @@ async def start_conversion(
 def _run_conversion(doc_id: str, voice: str):
     progress = conversion_progress[doc_id]
     content = progress["content"]
+
+    # Queued split-parts arrive here after Part 1 finishes — flip the doc into
+    # the converting state now that a worker slot has actually opened up.
+    if progress["status"] == "queued":
+        progress["status"] = "converting"
+        progress["progress"] = 0
+        try:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE documents SET status = 'converting', voice = ? WHERE id = ?",
+                    (voice, doc_id),
+                )
+        except Exception as e:
+            print(f"[_run_conversion] mark-converting failed for {doc_id}: {e}")
 
     import tempfile
     import shutil
@@ -592,28 +719,42 @@ def _run_conversion(doc_id: str, voice: str):
         chapter_start_times = []  # exact start time in seconds for each chapter
         cumulative = 0.0
 
-        for i, chapter in enumerate(content.chapters):
-            progress["current_chapter"] = i + 1
-            chapter_start_times.append(cumulative)
+        # Synthesize chapters concurrently and assemble in order. Synthesis is
+        # network-bound (waiting on the TTS service), so running a few chapters
+        # at once is a near-linear speedup even on a small CPU. Concurrency is
+        # bounded by TTS_CONCURRENCY to avoid tripping free-TTS throttling.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            def on_chunk_progress(current, total, _i=i):
-                chapter_progress = (current / total) * 100
-                overall = ((_i * 100) + chapter_progress) / total_chapters
-                progress["progress"] = int(overall)
-
-            audio_bytes = synthesize(chapter.text, voice, on_progress=on_chunk_progress)
-            # Skip chapters that produced no audio — empty/whitespace text is
-            # common in EPUB spine items (cover, nav, blank pages). Writing a
-            # 0-byte file would make ffmpeg's concat fail on the whole book. The
-            # start_time recorded above stays aligned (it points at the next
-            # real audio), so chapter navigation still works.
-            if not audio_bytes:
-                continue
+        def _synthesize_chapter_to_file(i, chapter):
+            audio = synthesize(chapter.text, voice)
+            # Empty/whitespace chapters (common EPUB cover/nav) → no file.
+            if not audio:
+                return i, None
             ch_path = os.path.join(tmpdir, f"ch_{i:05d}.mp3")
             with open(ch_path, "wb") as f:
-                f.write(audio_bytes)
-            del audio_bytes  # free the compressed bytes before the next chapter
+                f.write(audio)
+            return i, ch_path
 
+        results = {}
+        done = 0
+        with ThreadPoolExecutor(max_workers=limits.TTS_CONCURRENCY) as pool:
+            futures = [
+                pool.submit(_synthesize_chapter_to_file, i, ch)
+                for i, ch in enumerate(content.chapters)
+            ]
+            for fut in as_completed(futures):
+                idx, ch_path = fut.result()  # re-raises a chapter's synth failure
+                results[idx] = ch_path
+                done += 1
+                progress["current_chapter"] = done
+                progress["progress"] = int(done / total_chapters * 100)
+
+        # Assemble in the original chapter order and record exact start times.
+        for i in range(len(content.chapters)):
+            chapter_start_times.append(cumulative)
+            ch_path = results.get(i)
+            if not ch_path:
+                continue  # empty chapter — keep start_time aligned to next audio
             chapter_files.append(ch_path)
             cumulative += mp3_duration(ch_path)
 

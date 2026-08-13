@@ -17,3 +17,5 @@ gTTS>=2.5.0
 defusedxml>=0.7.1
 # Optional persistent DB (Turso/libSQL). Only imported when TURSO_DATABASE_URL is set.
 libsql-experimental>=0.0.55
+# Optional paid TTS. Only imported when TTS_PROVIDER=openai (needs OPENAI_API_KEY).
+openai>=1.40.0

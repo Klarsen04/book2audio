@@ -29,6 +29,17 @@ USER_QUOTA_BYTES = USER_QUOTA_MB * 1024 * 1024
 RATE_LIMIT_UPLOADS_PER_HOUR = _int("RATE_LIMIT_UPLOADS_PER_HOUR", 30)
 RATE_LIMIT_CONVERSIONS_PER_HOUR = _int("RATE_LIMIT_CONVERSIONS_PER_HOUR", 10)
 
+# How many chapters to synthesize at once. Synthesis is network-bound (waiting
+# on the TTS service), so a few in parallel is a near-linear speedup. Keep it
+# modest so free TTS endpoints (edge-tts) don't throttle; set to 1 to disable.
+TTS_CONCURRENCY = max(1, _int("TTS_CONCURRENCY", 4))
+
+# Cap the size of a single conversion so it finishes in a bounded time and
+# won't time out / be lost to a redeploy. Books larger than this are auto-split
+# into multiple parts (each a separate document), keeping chapter boundaries
+# intact. 20k words ≈ ~2h of audio, ~10-15 min to synthesize on the free tier.
+MAX_CONVERT_WORDS = max(1000, _int("MAX_CONVERT_WORDS", 20000))
+
 SESSION_TTL_DAYS = _int("SESSION_TTL_DAYS", 90)
 
 

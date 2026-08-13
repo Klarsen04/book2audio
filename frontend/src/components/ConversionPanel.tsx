@@ -51,8 +51,10 @@ export default function ConversionPanel({
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [freeingSpace, setFreeingSpace] = useState(false);
+  const [splitInfo, setSplitInfo] = useState<{ totalParts: number } | null>(null);
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const convertStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     api.get("/api/voices").then((res) => {
@@ -94,11 +96,15 @@ export default function ConversionPanel({
     setError(null);
     setErrorCode(null);
     setProgress(0);
+    convertStartRef.current = Date.now();
 
     try {
-      await api.post(
+      const res = await api.post(
         `/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&intro=${introSummary}`
       );
+      if (res.data?.split && res.data?.total_parts > 1) {
+        setSplitInfo({ totalParts: res.data.total_parts });
+      }
     } catch (err: any) {
       setIsConverting(false);
       // `detail` may be a plain string or a structured object ({code, message}).
@@ -400,9 +406,16 @@ export default function ConversionPanel({
           animate={{ opacity: 1, y: 0 }}
           className="bg-surface-hover border border-hairline-strong rounded-sm p-6"
         >
+          {splitInfo && (
+            <div className="mb-4 rounded-sm border border-gold/30 bg-gold/[0.06] px-4 py-3 text-sm font-serif text-paper/80">
+              Large book — splitting into <span className="text-gold">{splitInfo.totalParts} parts</span> so each converts reliably. You can start listening to Part 1 while the rest finishes in the background.
+            </div>
+          )}
           <div className="flex justify-between text-sm mb-3">
             <span className="text-paper/60 font-serif">
-              Converting chapter {currentChapter} of {chapters.length}...
+              {splitInfo
+                ? `Converting Part 1 — chapter ${currentChapter} of ${chapters.length}...`
+                : `Converting chapter ${currentChapter} of ${chapters.length}...`}
             </span>
             <span className="text-gold font-semibold label-mono">{progress}%</span>
           </div>
@@ -415,9 +428,18 @@ export default function ConversionPanel({
             />
           </div>
           <p className="text-xs text-paper/40 mt-3 font-serif">
-            {progress > 0 && progress < 100
-              ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * 0.5)} min remaining`
-              : "This may take a few minutes depending on book length."}
+            {(() => {
+              const start = convertStartRef.current;
+              if (progress > 2 && progress < 100 && start) {
+                // Extrapolate from real elapsed time — accurate once underway.
+                const elapsedMin = (Date.now() - start) / 60000;
+                const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
+                return `About ${remaining} min remaining · large books take a while on the free tier`;
+              }
+              return progress >= 100
+                ? "Finishing up…"
+                : "Estimating… large books can take several minutes.";
+            })()}
           </p>
         </motion.div>
       ) : (
