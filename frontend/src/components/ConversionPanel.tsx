@@ -57,6 +57,7 @@ export default function ConversionPanel({
   const [freeingSpace, setFreeingSpace] = useState(false);
   const [splitInfo, setSplitInfo] = useState<{ totalParts: number } | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("");
+  const [queueAhead, setQueueAhead] = useState<number>(0);
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const convertStartRef = useRef<number | null>(null);
@@ -84,6 +85,7 @@ export default function ConversionPanel({
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
         setJobStatus(res.data.status);
+        setQueueAhead(res.data.queue_ahead ?? 0);
 
         if (res.data.status === "completed") {
           clearInterval(interval);
@@ -428,8 +430,9 @@ export default function ConversionPanel({
           {jobStatus === "queued" ? (
             <div className="flex items-center gap-3 text-sm font-serif text-paper/70">
               <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
-              In queue — waiting for the current conversion to finish. This starts
-              automatically; you can leave this page and check the library.
+              {queueAhead > 0
+                ? `In queue — ${queueAhead} conversion${queueAhead === 1 ? "" : "s"} ahead of yours. It starts automatically; you can leave this page and check the library.`
+                : "In queue — starting shortly. You can leave this page and check the library."}
             </div>
           ) : (
             <>
