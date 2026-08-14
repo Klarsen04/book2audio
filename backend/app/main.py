@@ -405,6 +405,34 @@ def _url_is_public(url: str) -> bool:
         return False
 
 
+async def _get_public_url(
+    client: httpx.AsyncClient, url: str, max_redirects: int = 5
+) -> httpx.Response:
+    """
+    SSRF-safe GET for user-supplied URLs. Redirects are followed manually and
+    every hop is re-validated with _url_is_public(), so an initially public URL
+    cannot redirect to an internal / loopback / cloud-metadata address. Use with
+    a client created with follow_redirects=False.
+    """
+    from urllib.parse import urljoin
+
+    current = url
+    for _ in range(max_redirects + 1):
+        if not _url_is_public(current):
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+        resp = await client.get(current)
+        if resp.is_redirect:
+            location = resp.headers.get("location")
+            if not location:
+                return resp
+            current = urljoin(current, location)
+            continue
+        return resp
+    raise HTTPException(status_code=400, detail="That URL has too many redirects.")
+
+
 def _firecrawl_scrape(url: str) -> str | None:
     """
     Fetch clean page text via Firecrawl (free tier) — handles JavaScript-rendered
@@ -463,10 +491,12 @@ async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depe
     raw_bytes = b""
     try:
         # Send browser-like headers — many sites 403 requests with no User-Agent.
+        # follow_redirects=False + _get_public_url() re-validates every redirect
+        # hop so a public URL can't pivot to an internal address (SSRF).
         async with httpx.AsyncClient(
-            follow_redirects=True, timeout=30.0, headers=_BROWSER_HEADERS
+            follow_redirects=False, timeout=30.0, headers=_BROWSER_HEADERS
         ) as client:
-            resp = await client.get(body.url)
+            resp = await _get_public_url(client, body.url)
             resp.raise_for_status()
         content_type = resp.headers.get("content-type", "")
         raw_bytes = resp.content
