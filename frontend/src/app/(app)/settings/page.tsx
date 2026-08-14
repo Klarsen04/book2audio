@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import api from "@/lib/api";
 
 export default function SettingsPage() {
   const [defaultSpeed, setDefaultSpeed] = useState(1);
@@ -9,6 +10,15 @@ export default function SettingsPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [feedCopied, setFeedCopied] = useState(false);
+
+  useEffect(() => {
+    api
+      .get("/api/session/feed")
+      .then((res) => setFeedUrl(res.data.feed_url))
+      .catch(() => setFeedUrl(null)); // no session yet → nothing to show
+  }, []);
 
   useEffect(() => {
     const speed = localStorage.getItem("playback_speed");
@@ -130,6 +140,59 @@ export default function SettingsPage() {
                 />
               </button>
             </label>
+          </div>
+        </div>
+
+        {/* Listen in a podcast app */}
+        {feedUrl && (
+          <div className="bg-surface p-6">
+            <h3 className="label-mono mb-2 text-paper/50">Listen in a podcast app</h3>
+            <p className="mb-4 font-serif text-sm leading-relaxed text-paper/60">
+              Your converted audiobooks are also a private podcast feed. Paste this
+              URL into Overcast, Apple Podcasts, Pocket Casts, or any podcast app to
+              listen with background play, offline downloads, and car support.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 overflow-x-auto rounded-sm border border-hairline bg-ink px-3 py-2 font-mono text-xs text-paper">
+                {feedUrl}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(feedUrl);
+                  setFeedCopied(true);
+                  setTimeout(() => setFeedCopied(false), 1500);
+                }}
+                className="label-mono shrink-0 rounded-sm bg-gold px-4 py-2 text-ink"
+              >
+                {feedCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="mt-2 label-mono text-paper/40">
+              Keep this link private — anyone with it can hear your library.
+            </p>
+          </div>
+        )}
+
+        {/* Data & retention */}
+        <div className="bg-surface p-6">
+          <h3 className="label-mono mb-4 text-paper/50">Your data</h3>
+          <div className="space-y-3 font-serif text-sm leading-relaxed text-paper/60">
+            <p>
+              There are no accounts — your{" "}
+              <span className="text-paper/80">restore key</span> is how you return
+              to your library. Keep it somewhere safe; it&apos;s the only way back.
+            </p>
+            <p className="text-paper/70">
+              To keep storage free for everyone, a library with{" "}
+              <span className="text-gold">no activity for 30 days</span> is
+              automatically deleted — its books and audio are permanently removed.
+              Opening the app or playing something counts as activity and resets
+              the clock.
+            </p>
+            <p className="text-paper/50">
+              Want a copy regardless? Use <span className="text-paper/70">Export</span>{" "}
+              in your library to download all your audiobooks as a .zip.
+            </p>
           </div>
         </div>
       </div>

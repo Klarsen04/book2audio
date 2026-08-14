@@ -18,6 +18,7 @@ If AUDIO_BUCKET is unset, everything falls back to the local directory.
 """
 
 import os
+import uuid
 from pathlib import Path
 
 # Local fallback dir (mirrors main.py's resolution).
@@ -54,13 +55,37 @@ def use_cloud() -> bool:
     return _USE_S3
 
 
+# Optional: a public CDN base URL (e.g. a Cloudflare custom domain in front of
+# the bucket) for $0 egress. When set, playback is redirected here instead of a
+# presigned bucket URL, so audio streams via the CDN and off the backend/bucket
+# egress. The object must be reachable at "<base>/audio/<doc_id>.mp3".
+_PUBLIC_BASE_URL = (os.environ.get("AUDIO_PUBLIC_BASE_URL") or "").rstrip("/")
+
+
+def public_url(doc_id: str):
+    """A CDN URL for the audio, or None if no public base URL is configured."""
+    if not _PUBLIC_BASE_URL:
+        return None
+    return f"{_PUBLIC_BASE_URL}/{_key(doc_id)}"
+
+
+def _safe_doc_id(doc_id: str) -> str:
+    """
+    Validate and normalize document IDs before using them in storage paths/keys.
+    Expected format is UUID.
+    """
+    return str(uuid.UUID(doc_id))
+
+
 def _key(doc_id: str) -> str:
-    return f"audio/{doc_id}.mp3"
+    safe_doc_id = _safe_doc_id(doc_id)
+    return f"audio/{safe_doc_id}.mp3"
 
 
 def local_path(doc_id: str) -> Path:
     """Local path where audio is written before upload (and served from locally)."""
-    return _LOCAL_DIR / f"{doc_id}.mp3"
+    safe_doc_id = _safe_doc_id(doc_id)
+    return _LOCAL_DIR / f"{safe_doc_id}.mp3"
 
 
 def save_audio(doc_id: str, source_path: str | Path) -> str:
@@ -92,6 +117,27 @@ def open_stream(doc_id: str):
         obj = _s3().get_object(Bucket=_BUCKET, Key=_key(doc_id))
         return obj["Body"]
     return open(local_path(doc_id), "rb")
+
+
+def presigned_url(doc_id: str, expires_in: int = 86400, filename: str | None = None):
+    """
+    A time-limited direct GET URL for the audio object (cloud only), so clients
+    stream straight from B2/R2 instead of proxying bytes through the backend
+    (saves backend bandwidth/CPU). Returns None when using local storage or if
+    the URL can't be generated. When `filename` is given, the object is served
+    as an attachment with that name (for a download); otherwise inline (for
+    playback — some mobile browsers refuse to play `attachment` media).
+    """
+    if not _USE_S3:
+        return None
+    params = {"Bucket": _BUCKET, "Key": _key(doc_id)}
+    if filename:
+        params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
+        params["ResponseContentType"] = "audio/mpeg"
+    try:
+        return _s3().generate_presigned_url("get_object", Params=params, ExpiresIn=expires_in)
+    except Exception:
+        return None
 
 
 def read_bytes(doc_id: str) -> bytes:

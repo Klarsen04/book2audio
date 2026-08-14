@@ -54,7 +54,7 @@ export default function LibraryPage() {
   const [confirmDelete, setConfirmDelete] = useState<{ type: "collection" | "document"; id: string } | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // Download the whole library as one .b2a file (audio + metadata).
+  // Download the whole library as one .zip of MP3s (one file per book).
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -62,7 +62,7 @@ export default function LibraryPage() {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "book2audio-library.b2a";
+      a.download = "book2audio-library.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();

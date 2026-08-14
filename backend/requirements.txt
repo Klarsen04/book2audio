@@ -5,15 +5,19 @@ boto3>=1.43.67
 pdfplumber>=0.11.0
 pdfminer.six>=20231228
 beautifulsoup4>=4.15.0
-python-docx>=1.1.0
+python-docx>=1.2.0
 pydub>=0.25.1
 PyJWT>=2.8.0
-bcrypt>=4.1.0
+bcrypt>=4.3.0
 httpx>=0.26.0
 pydantic>=2.5.0
 certifi>=2024.12.14
 edge-tts>=7.0.0
-gTTS>=2.5.0
+gTTS>=2.5.4
 defusedxml>=0.7.1
 # Optional persistent DB (Turso/libSQL). Only imported when TURSO_DATABASE_URL is set.
 libsql-experimental>=0.0.55
+# Optional paid TTS. Only imported when TTS_PROVIDER=openai (needs OPENAI_API_KEY).
+openai>=1.40.0
+# Optional error monitoring. Only initialized when SENTRY_DSN is set.
+sentry-sdk[fastapi]>=2.0.0

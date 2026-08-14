@@ -12,6 +12,9 @@ interface Props {
   wordCount: number;
   onConversionComplete: () => void;
   onBack: () => void;
+  // When opened for a doc that's already converting/queued, jump straight to
+  // the progress view and start polling (no re-setup).
+  startConverting?: boolean;
 }
 
 interface Voice {
@@ -35,6 +38,7 @@ export default function ConversionPanel({
   wordCount,
   onConversionComplete,
   onBack,
+  startConverting = false,
 }: Props) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState(() => {
@@ -49,8 +53,22 @@ export default function ConversionPanel({
   const [progress, setProgress] = useState(0);
   const [currentChapter, setCurrentChapter] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [freeingSpace, setFreeingSpace] = useState(false);
+  const [splitInfo, setSplitInfo] = useState<{ totalParts: number } | null>(null);
+  const [jobStatus, setJobStatus] = useState<string>("");
+  const [queueAhead, setQueueAhead] = useState<number>(0);
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const convertStartRef = useRef<number | null>(null);
+
+  // Opened for an already-running job → jump straight to the progress view.
+  useEffect(() => {
+    if (startConverting) {
+      setIsConverting(true);
+      convertStartRef.current = Date.now();
+    }
+  }, [startConverting]);
 
   useEffect(() => {
     api.get("/api/voices").then((res) => {
@@ -66,6 +84,8 @@ export default function ConversionPanel({
         const res = await api.get(`/api/status/${jobId}`);
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
+        setJobStatus(res.data.status);
+        setQueueAhead(res.data.queue_ahead ?? 0);
 
         if (res.data.status === "completed") {
           clearInterval(interval);
@@ -90,15 +110,58 @@ export default function ConversionPanel({
   const handleConvert = async () => {
     setIsConverting(true);
     setError(null);
+    setErrorCode(null);
     setProgress(0);
+    convertStartRef.current = Date.now();
 
     try {
-      await api.post(
+      const res = await api.post(
         `/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&intro=${introSummary}`
       );
+      if (res.data?.split && res.data?.total_parts > 1) {
+        setSplitInfo({ totalParts: res.data.total_parts });
+      }
     } catch (err: any) {
       setIsConverting(false);
-      setError(err.response?.data?.detail || "Failed to start conversion");
+      // `detail` may be a plain string or a structured object ({code, message}).
+      const detail = err.response?.data?.detail;
+      if (detail && typeof detail === "object") {
+        setError(detail.message || "Failed to start conversion");
+        setErrorCode(detail.code || null);
+      } else {
+        setError(detail || "Failed to start conversion");
+        setErrorCode(null);
+      }
+    }
+  };
+
+  // Download the whole library as one .zip so the user keeps their audiobooks.
+  const handleExportLibrary = async () => {
+    try {
+      const res = await api.get("/api/export", { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "book2audio-library.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // best-effort
+    }
+  };
+
+  // Clear the library to free the storage quota, then return to a fresh start.
+  const handleClearAndRestart = async () => {
+    setFreeingSpace(true);
+    try {
+      await api.delete("/api/library");
+      onBack();
+    } catch {
+      setError("Couldn't clear your library. Please try again.");
+    } finally {
+      setFreeingSpace(false);
     }
   };
 
@@ -359,25 +422,52 @@ export default function ConversionPanel({
           animate={{ opacity: 1, y: 0 }}
           className="bg-surface-hover border border-hairline-strong rounded-sm p-6"
         >
-          <div className="flex justify-between text-sm mb-3">
-            <span className="text-paper/60 font-serif">
-              Converting chapter {currentChapter} of {chapters.length}...
-            </span>
-            <span className="text-gold font-semibold label-mono">{progress}%</span>
-          </div>
-          <div className="w-full bg-surface rounded-full h-2.5 overflow-hidden">
-            <motion.div
-              className="h-full rounded-full bg-gold"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-          </div>
-          <p className="text-xs text-paper/40 mt-3 font-serif">
-            {progress > 0 && progress < 100
-              ? `Estimated ${Math.ceil(((100 - progress) / Math.max(progress, 1)) * 0.5)} min remaining`
-              : "This may take a few minutes depending on book length."}
-          </p>
+          {splitInfo && (
+            <div className="mb-4 rounded-sm border border-gold/30 bg-gold/[0.06] px-4 py-3 text-sm font-serif text-paper/80">
+              Large book — splitting into <span className="text-gold">{splitInfo.totalParts} parts</span> so each converts reliably. You can start listening to Part 1 while the rest finishes in the background.
+            </div>
+          )}
+          {jobStatus === "queued" ? (
+            <div className="flex items-center gap-3 text-sm font-serif text-paper/70">
+              <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
+              {queueAhead > 0
+                ? `In queue — ${queueAhead} conversion${queueAhead === 1 ? "" : "s"} ahead of yours. It starts automatically; you can leave this page and check the library.`
+                : "In queue — starting shortly. You can leave this page and check the library."}
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between text-sm mb-3">
+                <span className="text-paper/60 font-serif">
+                  {splitInfo
+                    ? `Converting Part 1 — chapter ${currentChapter} of ${chapters.length}...`
+                    : `Converting chapter ${currentChapter} of ${chapters.length}...`}
+                </span>
+                <span className="text-gold font-semibold label-mono">{progress}%</span>
+              </div>
+              <div className="w-full bg-surface rounded-full h-2.5 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-gold"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-xs text-paper/40 mt-3 font-serif">
+                {(() => {
+                  const start = convertStartRef.current;
+                  if (progress > 2 && progress < 100 && start) {
+                    // Extrapolate from real elapsed time — accurate once underway.
+                    const elapsedMin = (Date.now() - start) / 60000;
+                    const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
+                    return `About ${remaining} min remaining · large books take a while on the free tier`;
+                  }
+                  return progress >= 100
+                    ? "Finishing up…"
+                    : "Estimating… large books can take several minutes.";
+                })()}
+              </p>
+            </>
+          )}
         </motion.div>
       ) : (
         <motion.button
@@ -389,7 +479,36 @@ export default function ConversionPanel({
         </motion.button>
       )}
 
-      {error && (
+      {error && errorCode === "quota_exceeded" ? (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-surface-hover border border-gold/30 rounded-sm p-6 space-y-4"
+        >
+          <div>
+            <h3 className="text-paper font-display text-lg mb-1">Your library is full</h3>
+            <p className="text-paper/60 text-sm font-serif leading-relaxed">{error}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleExportLibrary}
+              className="flex-1 py-3 rounded-sm bg-gold text-ink font-semibold hover:bg-gold-soft transition-all"
+            >
+              ⬇ Download my audiobooks (.zip)
+            </button>
+            <button
+              onClick={handleClearAndRestart}
+              disabled={freeingSpace}
+              className="flex-1 py-3 rounded-sm bg-surface border border-hairline-strong text-paper/80 font-serif hover:bg-surface-active transition-all disabled:opacity-50"
+            >
+              {freeingSpace ? "Clearing…" : "Clear library & start fresh"}
+            </button>
+          </div>
+          <p className="text-paper/40 text-xs font-serif">
+            Download first — clearing permanently deletes your audiobooks from the server to free up space.
+          </p>
+        </motion.div>
+      ) : error ? (
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
@@ -397,7 +516,7 @@ export default function ConversionPanel({
         >
           {error}
         </motion.div>
-      )}
+      ) : null}
     </div>
   );
 }

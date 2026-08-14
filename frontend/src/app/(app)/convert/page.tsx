@@ -19,6 +19,7 @@ export default function ConvertPage() {
   const searchParams = useSearchParams();
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
+  const [startConverting, setStartConverting] = useState(false);
 
   useEffect(() => {
     const docId = searchParams.get("doc");
@@ -34,6 +35,8 @@ export default function ConvertPage() {
             chapters: doc.chapters || [],
             total_word_count: doc.chapters?.reduce((s: number, c: any) => s + c.word_count, 0) || 0,
           });
+          // Opened from a "Converting…"/"Queued" card → show live progress.
+          setStartConverting(doc.status === "converting" || doc.status === "queued");
         })
         .catch(() => {})
         .finally(() => setLoadingDoc(false));
@@ -96,9 +99,11 @@ export default function ConvertPage() {
               title={uploadResult.title}
               chapters={uploadResult.chapters}
               wordCount={uploadResult.total_word_count}
+              startConverting={startConverting}
               onConversionComplete={handleConversionComplete}
               onBack={() => {
                 setUploadResult(null);
+                setStartConverting(false);
                 router.replace("/convert");
               }}
             />

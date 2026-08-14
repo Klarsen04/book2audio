@@ -105,32 +105,77 @@ class _LibsqlCursor:
         return self._cursor.close()
 
 
+# libSQL/Turso can invalidate a connection's underlying "stream" between calls
+# (idle timeout, brief network blip). The next call then raises a Hrana error
+# like `stream not found`. These are safe to retry once with a fresh underlying
+# connection — the caller sees a clean call.
+_STALE_STREAM_MARKERS = ("stream not found", "stream is closed", "stream expired")
+
+
+def _is_stale_stream_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(m in msg for m in _STALE_STREAM_MARKERS)
+
+
+def _reopen_libsql():
+    import libsql_experimental as libsql
+    fresh = libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+    fresh.execute("PRAGMA foreign_keys=ON")
+    return fresh
+
+
 class _LibsqlConnection:
-    """Wraps a libsql connection so it quacks like sqlite3 (row-by-name)."""
+    """Wraps a libsql connection so it quacks like sqlite3 (row-by-name), and
+    heals from Turso 'stream not found' errors with one silent re-open."""
 
     def __init__(self, conn):
         self._conn = conn
         # Accept assignment for API parity; the wrapper always yields _LibsqlRow.
         self.row_factory = None
 
+    def _call(self, method_name, *args, **kwargs):
+        try:
+            return getattr(self._conn, method_name)(*args, **kwargs)
+        except Exception as e:
+            if not _is_stale_stream_error(e):
+                raise
+            # The underlying stream has been closed by the server — reconnect
+            # once and retry. The retry only re-executes the current call, so
+            # any prior in-flight transaction is lost (matches how the caller
+            # would have observed the error anyway).
+            try:
+                self._conn.close()
+            except Exception as close_error:
+                # Best-effort close during stale-stream recovery; failure here is
+                # non-fatal because we immediately reopen a fresh connection.
+                print(f"Warning: failed to close stale libsql connection: {close_error}")
+            self._conn = _reopen_libsql()
+            return getattr(self._conn, method_name)(*args, **kwargs)
+
     def execute(self, *args, **kwargs):
-        return _LibsqlCursor(self._conn.execute(*args, **kwargs))
+        return _LibsqlCursor(self._call("execute", *args, **kwargs))
 
     def executemany(self, *args, **kwargs):
-        return _LibsqlCursor(self._conn.executemany(*args, **kwargs))
+        return _LibsqlCursor(self._call("executemany", *args, **kwargs))
 
     def executescript(self, *args, **kwargs):
-        self._conn.executescript(*args, **kwargs)
+        self._call("executescript", *args, **kwargs)
         return self
 
     def cursor(self):
-        return _LibsqlCursor(self._conn.cursor())
+        return _LibsqlCursor(self._call("cursor"))
 
     def commit(self):
-        return self._conn.commit()
+        return self._call("commit")
 
     def rollback(self):
-        return self._conn.rollback()
+        try:
+            return self._conn.rollback()
+        except Exception as e:
+            if _is_stale_stream_error(e):
+                # Nothing to roll back on a dead stream; treat as a no-op.
+                return None
+            raise
 
     def close(self):
         return self._conn.close()
@@ -159,10 +204,20 @@ def get_db():
         yield conn
         conn.commit()
     except Exception:
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            # If rollback itself fails (e.g. the stream was closed under us),
+            # don't let that mask the original exception.
+            pass
         raise
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            # Best-effort cleanup: ignore close failures so they don't mask
+            # an exception already being propagated from the context body.
+            pass
 
 
 def init_db():
@@ -225,3 +280,26 @@ def init_db():
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_restore_key ON users(restore_key_hash)"
             )
+        if "last_active_at" not in cols:
+            # Tracks session activity for abandoned-session cleanup. Backfill to
+            # now so existing sessions get a full grace window (not reaped at once).
+            conn.execute("ALTER TABLE users ADD COLUMN last_active_at TEXT")
+            conn.execute("UPDATE users SET last_active_at = datetime('now') WHERE last_active_at IS NULL")
+        if "feed_token" not in cols:
+            # Random per-session token for the private podcast RSS feed URL
+            # (decoupled from the restore key). Generated on first request.
+            conn.execute("ALTER TABLE users ADD COLUMN feed_token TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token ON users(feed_token)"
+            )
+
+        doc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(documents)").fetchall()}
+        if "audio_bytes" not in doc_cols:
+            # Size of the stored audio, used for the per-session storage quota.
+            conn.execute("ALTER TABLE documents ADD COLUMN audio_bytes INTEGER NOT NULL DEFAULT 0")
+        if "part_group" not in doc_cols:
+            # When a large book is auto-split, all its parts share a part_group
+            # and carry a 1-based part_index so the library and player can order
+            # and chain them (Part 1 → 2 → 3 …) regardless of created_at.
+            conn.execute("ALTER TABLE documents ADD COLUMN part_group TEXT")
+            conn.execute("ALTER TABLE documents ADD COLUMN part_index INTEGER")

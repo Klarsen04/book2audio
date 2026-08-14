@@ -91,7 +91,8 @@ def _create_guest_user() -> tuple[str, str]:
         try:
             with get_db() as conn:
                 conn.execute(
-                    "INSERT INTO users (id, email, auth_provider, restore_key_hash) VALUES (?, ?, 'guest', ?)",
+                    "INSERT INTO users (id, email, auth_provider, restore_key_hash, last_active_at) "
+                    "VALUES (?, ?, 'guest', ?, datetime('now'))",
                     (user_id, placeholder_email, key_hash),
                 )
             return user_id, key
@@ -114,6 +115,24 @@ def _token_from_request(request: Request) -> str | None:
     return None
 
 
+def _touch_last_active(conn, user_id: str, last_active_at) -> None:
+    """Bump the session's activity timestamp, throttled to ~once/day to avoid a
+    DB write on every request (matters on a remote/metered DB like Turso)."""
+    stale = True
+    if last_active_at:
+        try:
+            last = datetime.strptime(str(last_active_at), "%Y-%m-%d %H:%M:%S").replace(
+                tzinfo=timezone.utc
+            )
+            stale = (datetime.now(timezone.utc) - last) > timedelta(days=1)
+        except ValueError:
+            stale = True
+    if stale:
+        conn.execute(
+            "UPDATE users SET last_active_at = datetime('now') WHERE id = ?", (user_id,)
+        )
+
+
 def _resolve_existing(request: Request) -> dict | None:
     """Return the user for a valid session token, else None. Never mints."""
     token = _token_from_request(request)
@@ -124,12 +143,13 @@ def _resolve_existing(request: Request) -> dict | None:
         return None
     with get_db() as conn:
         row = conn.execute(
-            "SELECT id, name FROM users WHERE id = ?", (user_id,)
+            "SELECT id, name, last_active_at FROM users WHERE id = ?", (user_id,)
         ).fetchone()
-    if not row:
-        return None
+        if not row:
+            return None
+        _touch_last_active(conn, row["id"], row["last_active_at"])
     request.state.session_user_id = row["id"]
-    return dict(row)
+    return {"id": row["id"], "name": row["name"]}
 
 
 def get_session(request: Request) -> dict:
@@ -169,3 +189,50 @@ def optional_session(request: Request) -> dict:
     if existing:
         return existing
     return {"id": _ANON_ID, "name": None}
+
+
+def cleanup_abandoned_sessions() -> int:
+    """
+    Delete sessions with no activity for longer than SESSION_TTL_DAYS, along with
+    their documents, playback positions, and audio blobs, to reclaim storage.
+    Returns the number of sessions removed. No-op if SESSION_TTL_DAYS <= 0.
+
+    Deletes are explicit (not relying on FK cascade) and remove object-storage
+    blobs, which a DB cascade never touches.
+    """
+    from app.limits import SESSION_TTL_DAYS
+
+    if SESSION_TTL_DAYS <= 0:
+        return 0
+
+    from app import storage
+
+    removed = 0
+    with get_db() as conn:
+        stale = conn.execute(
+            "SELECT id FROM users WHERE last_active_at IS NOT NULL "
+            "AND last_active_at < datetime('now', ?)",
+            (f"-{SESSION_TTL_DAYS} days",),
+        ).fetchall()
+
+        for u in stale:
+            uid = u["id"]
+            doc_ids = [
+                r["id"]
+                for r in conn.execute(
+                    "SELECT id FROM documents WHERE user_id = ?", (uid,)
+                ).fetchall()
+            ]
+            for did in doc_ids:
+                try:
+                    storage.delete_audio(did)
+                except Exception:
+                    # Best-effort: a blob that's already gone or a transient
+                    # storage error must not stop us reaping the rest.
+                    pass
+            conn.execute("DELETE FROM playback_positions WHERE user_id = ?", (uid,))
+            conn.execute("DELETE FROM documents WHERE user_id = ?", (uid,))
+            conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+            removed += 1
+
+    return removed
