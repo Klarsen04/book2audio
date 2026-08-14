@@ -55,6 +55,20 @@ def use_cloud() -> bool:
     return _USE_S3
 
 
+# Optional: a public CDN base URL (e.g. a Cloudflare custom domain in front of
+# the bucket) for $0 egress. When set, playback is redirected here instead of a
+# presigned bucket URL, so audio streams via the CDN and off the backend/bucket
+# egress. The object must be reachable at "<base>/audio/<doc_id>.mp3".
+_PUBLIC_BASE_URL = (os.environ.get("AUDIO_PUBLIC_BASE_URL") or "").rstrip("/")
+
+
+def public_url(doc_id: str):
+    """A CDN URL for the audio, or None if no public base URL is configured."""
+    if not _PUBLIC_BASE_URL:
+        return None
+    return f"{_PUBLIC_BASE_URL}/{_key(doc_id)}"
+
+
 def _safe_doc_id(doc_id: str) -> str:
     """
     Validate and normalize document IDs before using them in storage paths/keys.

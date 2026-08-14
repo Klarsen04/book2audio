@@ -1001,6 +1001,13 @@ async def download_audio(doc_id: str, download: bool = False, user: dict = Depen
     # play). `?download=1` serves it as an attachment; otherwise inline for the
     # player. Falls back to proxying if a URL can't be minted.
     if storage.use_cloud():
+        # For playback, prefer a public CDN URL (Cloudflare in front of the
+        # bucket → $0 egress) when configured. Downloads keep using a presigned
+        # URL so they get the attachment filename.
+        if not download:
+            cdn = storage.public_url(doc_id)
+            if cdn:
+                return RedirectResponse(cdn, status_code=302)
         url = storage.presigned_url(doc_id, filename=filename if download else None)
         if url:
             return RedirectResponse(url, status_code=302)

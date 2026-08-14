@@ -108,6 +108,38 @@ def _pdf_outline_titles(pdf) -> list[str]:
     return titles
 
 
+def _ocr_space_pdf(file_bytes: bytes) -> str | None:
+    """
+    Best-effort OCR for scanned/image PDFs via OCR.Space, used only when normal
+    text extraction comes up empty and OCR_SPACE_API_KEY is set. Note the free
+    tier has small file-size / page limits, so this rescues small scanned docs;
+    very large scanned books may exceed the free quota. Returns text or None.
+    """
+    import os
+
+    key = os.environ.get("OCR_SPACE_API_KEY")
+    if not key:
+        return None
+    try:
+        import httpx
+
+        resp = httpx.post(
+            "https://api.ocr.space/parse/image",
+            data={"apikey": key, "filetype": "PDF", "OCREngine": "2", "scale": "true"},
+            files={"file": ("document.pdf", file_bytes, "application/pdf")},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("IsErroredOnProcessing"):
+            return None
+        results = data.get("ParsedResults") or []
+        text = "\n".join(r.get("ParsedText", "") for r in results).strip()
+        return text or None
+    except Exception:
+        return None
+
+
 def extract_from_pdf(file_bytes: bytes) -> BookContent:
     pdf = pdfplumber.open(io.BytesIO(file_bytes))
     title = (pdf.metadata or {}).get("Title", "") or "Untitled"
@@ -150,6 +182,15 @@ def extract_from_pdf(file_bytes: bytes) -> BookContent:
 
     pdf.close()
     word_count = sum(len(ch.text.split()) for ch in chapters)
+
+    # A scanned/image PDF has no text layer, so extraction yields ~nothing.
+    # Fall back to OCR (if configured) to read the text off the page images.
+    if word_count < 20:
+        ocr_text = _ocr_space_pdf(file_bytes)
+        if ocr_text and len(ocr_text.split()) > word_count:
+            chapters = [Chapter(title=("Full Text" if title == "Untitled" else title), text=ocr_text)]
+            word_count = len(ocr_text.split())
+
     return BookContent(title=title, chapters=chapters, word_count=word_count)
 
 
