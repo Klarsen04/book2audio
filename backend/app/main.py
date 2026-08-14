@@ -415,7 +415,9 @@ async def _get_public_url(
     cannot redirect to an internal / loopback / cloud-metadata address. Use with
     a client created with follow_redirects=False.
     """
-    from urllib.parse import urljoin
+    import socket
+    import ipaddress
+    from urllib.parse import urljoin, urlparse, urlunparse
 
     current = url
     for _ in range(max_redirects + 1):
@@ -423,7 +425,49 @@ async def _get_public_url(
             raise HTTPException(
                 status_code=400, detail="Please provide a valid public http(s) URL."
             )
-        resp = await client.get(current)
+
+        parsed = urlparse(current)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+
+        # Resolve once, validate, then connect to that verified IP to avoid
+        # DNS-rebinding/TOCTOU between validation and request.
+        addrinfos = socket.getaddrinfo(
+            parsed.hostname,
+            parsed.port or (443 if parsed.scheme == "https" else 80),
+            type=socket.SOCK_STREAM,
+        )
+        verified_ip = None
+        for info in addrinfos:
+            ip = ipaddress.ip_address(info[4][0])
+            if (
+                ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+            ):
+                continue
+            verified_ip = str(ip)
+            break
+
+        if not verified_ip:
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+
+        host_header = parsed.hostname if parsed.port is None else f"{parsed.hostname}:{parsed.port}"
+        ip_netloc = verified_ip if parsed.port is None else f"{verified_ip}:{parsed.port}"
+        request_url = urlunparse(
+            (parsed.scheme, ip_netloc, parsed.path or "/", parsed.params, parsed.query, parsed.fragment)
+        )
+        headers = dict(client.headers)
+        headers["Host"] = host_header
+
+        resp = await client.get(
+            request_url,
+            headers=headers,
+            extensions={"sni_hostname": parsed.hostname} if parsed.scheme == "https" else None,
+        )
         if resp.is_redirect:
             location = resp.headers.get("location")
             if not location:
