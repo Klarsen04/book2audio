@@ -1,0 +1,26 @@
+name: Require deploy-preview label
+
+# Fails until the PR carries the "deploy-preview" label. Make this check a
+# required status check in branch protection so a PR can't be merged without it.
+
+on:
+  pull_request:
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+concurrency:
+  group: require-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  require-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the "deploy-preview" label
+        run: |
+          echo "Labels on this PR: ${{ join(github.event.pull_request.labels.*.name, ', ') }}"
+          if ${{ contains(github.event.pull_request.labels.*.name, 'deploy-preview') }}; then
+            echo "✅ 'deploy-preview' label present — merge allowed."
+          else
+            echo "❌ Add the 'deploy-preview' label before merging."
+            exit 1
+          fi
