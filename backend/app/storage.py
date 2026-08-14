@@ -150,8 +150,10 @@ def delete_audio(doc_id: str) -> None:
     if _USE_S3:
         try:
             _s3().delete_object(Bucket=_BUCKET, Key=_key(doc_id))
-        except Exception:
-            pass
+        except Exception as e:
+            # Best-effort cleanup: a failed delete (already gone, transient S3
+            # error) shouldn't break the caller; the object may be reclaimed later.
+            print(f"[storage] delete_object failed for {doc_id}: {e}")
     else:
         p = local_path(doc_id)
         if p.exists():

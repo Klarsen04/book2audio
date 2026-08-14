@@ -239,10 +239,6 @@ export default function LibraryPage() {
     setDocuments((docs) => docs.filter((d) => d.id !== docId));
   };
 
-  const favorites: string[] = typeof window !== "undefined"
-    ? JSON.parse(localStorage.getItem("favorites") || "[]")
-    : [];
-
   const activeCollectionObj = activeCollection
     ? collections.find((c) => c.id === activeCollection)
     : null;

@@ -247,6 +247,7 @@ async def health_check():
         import gtts
         has_gtts = True
     except ImportError:
+        # gTTS is an optional TTS provider; absence just means it's unavailable.
         pass
     from app.tts.edge import USE_EDGE
     converting, queued = _queue_counts()
@@ -405,6 +406,78 @@ def _url_is_public(url: str) -> bool:
         return False
 
 
+async def _get_public_url(
+    client: httpx.AsyncClient, url: str, max_redirects: int = 5
+) -> httpx.Response:
+    """
+    SSRF-safe GET for user-supplied URLs. Redirects are followed manually and
+    every hop is re-validated with _url_is_public(), so an initially public URL
+    cannot redirect to an internal / loopback / cloud-metadata address. Use with
+    a client created with follow_redirects=False.
+    """
+    import socket
+    import ipaddress
+    from urllib.parse import urljoin, urlparse, urlunparse
+
+    current = url
+    for _ in range(max_redirects + 1):
+        if not _url_is_public(current):
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+
+        parsed = urlparse(current)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+
+        # Resolve once, validate, then connect to that verified IP to avoid
+        # DNS-rebinding/TOCTOU between validation and request.
+        addrinfos = socket.getaddrinfo(
+            parsed.hostname,
+            parsed.port or (443 if parsed.scheme == "https" else 80),
+            type=socket.SOCK_STREAM,
+        )
+        verified_ip = None
+        for info in addrinfos:
+            ip = ipaddress.ip_address(info[4][0])
+            if (
+                ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+            ):
+                continue
+            verified_ip = str(ip)
+            break
+
+        if not verified_ip:
+            raise HTTPException(
+                status_code=400, detail="Please provide a valid public http(s) URL."
+            )
+
+        host_header = parsed.hostname if parsed.port is None else f"{parsed.hostname}:{parsed.port}"
+        ip_netloc = verified_ip if parsed.port is None else f"{verified_ip}:{parsed.port}"
+        request_url = urlunparse(
+            (parsed.scheme, ip_netloc, parsed.path or "/", parsed.params, parsed.query, parsed.fragment)
+        )
+        headers = dict(client.headers)
+        headers["Host"] = host_header
+
+        resp = await client.get(
+            request_url,
+            headers=headers,
+            extensions={"sni_hostname": parsed.hostname} if parsed.scheme == "https" else None,
+        )
+        if resp.is_redirect:
+            location = resp.headers.get("location")
+            if not location:
+                return resp
+            current = urljoin(current, location)
+            continue
+        return resp
+    raise HTTPException(status_code=400, detail="That URL has too many redirects.")
+
+
 def _firecrawl_scrape(url: str) -> str | None:
     """
     Fetch clean page text via Firecrawl (free tier) — handles JavaScript-rendered
@@ -463,10 +536,12 @@ async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depe
     raw_bytes = b""
     try:
         # Send browser-like headers — many sites 403 requests with no User-Agent.
+        # follow_redirects=False + _get_public_url() re-validates every redirect
+        # hop so a public URL can't pivot to an internal address (SSRF).
         async with httpx.AsyncClient(
-            follow_redirects=True, timeout=30.0, headers=_BROWSER_HEADERS
+            follow_redirects=False, timeout=30.0, headers=_BROWSER_HEADERS
         ) as client:
-            resp = await client.get(body.url)
+            resp = await _get_public_url(client, body.url)
             resp.raise_for_status()
         content_type = resp.headers.get("content-type", "")
         raw_bytes = resp.content
