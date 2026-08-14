@@ -1,5 +1,15 @@
 # 📖🎧 Book2Audio
 
+<p>
+  <img alt="Next.js 15" src="https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white">
+  <img alt="PWA" src="https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white">
+  <img alt="Frontend on Vercel" src="https://img.shields.io/badge/frontend-Vercel-000000?logo=vercel&logoColor=white">
+  <img alt="Backend on Render" src="https://img.shields.io/badge/backend-Render-46E3B7?logo=render&logoColor=white">
+</p>
+
 **Turn documents into audiobooks.** Upload a PDF, EPUB, DOCX, TXT, a URL, or pasted text —
 Book2Audio detects the chapters, strips the running headers/footers/page-number junk, and
 reads it aloud in a natural neural voice. Listen in the app, download a `.zip` of MP3s, or
@@ -8,6 +18,20 @@ subscribe to your library as a **private podcast feed** and listen anywhere.
 **No accounts.** The first time you convert something you get a **restore key**
 (`PAGE-XXXX-XXXX-XXXX`) — that's your identity. Paste it on any device to get your library
 back. Nothing to sign up for.
+
+## Screenshots
+
+<!-- Drop images into docs/screenshots/ (they'll render here once added). -->
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Homepage" width="49%">
+  <img src="docs/screenshots/library.png" alt="Library" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/player.png" alt="Player" width="49%">
+  <img src="docs/screenshots/reader.png" alt="Reader view" width="49%">
+</p>
+
+> 📸 Add your own screenshots as `docs/screenshots/{home,library,player,reader}.png`.
 
 ---
 
