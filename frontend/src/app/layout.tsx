@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import { Playfair_Display, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/contexts/SessionContext";
@@ -93,6 +94,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy="afterInteractive"
           />
         )}
+        {/* Vercel Web Analytics — collects page views on Vercel deployments. */}
+        <Analytics />
       </body>
     </html>
   );
