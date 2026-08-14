@@ -13,7 +13,7 @@ httpx>=0.26.0
 pydantic>=2.5.0
 certifi>=2024.12.14
 edge-tts>=7.0.0
-gTTS>=2.5.0
+gTTS>=2.5.4
 defusedxml>=0.7.1
 # Optional persistent DB (Turso/libSQL). Only imported when TURSO_DATABASE_URL is set.
 libsql-experimental>=0.0.55
