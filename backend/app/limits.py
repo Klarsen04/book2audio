@@ -34,6 +34,12 @@ RATE_LIMIT_CONVERSIONS_PER_HOUR = _int("RATE_LIMIT_CONVERSIONS_PER_HOUR", 10)
 # modest so free TTS endpoints (edge-tts) don't throttle; set to 1 to disable.
 TTS_CONCURRENCY = max(1, _int("TTS_CONCURRENCY", 4))
 
+# How many conversions may run at the same time across ALL sessions. Within one
+# session conversions are always serial; separate sessions run in parallel up to
+# this cap so one person's book doesn't block everyone else. Kept small because
+# the free tier is memory/CPU-constrained (raise only on a bigger instance).
+MAX_CONCURRENT_CONVERSIONS = max(1, _int("MAX_CONCURRENT_CONVERSIONS", 2))
+
 # Cap the size of a single conversion so it finishes in a bounded time and
 # won't time out / be lost to a redeploy. Books larger than this are auto-split
 # into multiple parts (each a separate document), keeping chapter boundaries
