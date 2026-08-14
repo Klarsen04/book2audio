@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> 📖 **Full architecture, per-file explanations, the complete env-var reference, and
+> service wiring live in [`DOCUMENTATION.md`](./DOCUMENTATION.md).** Also see
+> [`DEPLOYMENT_PERSISTENCE.md`](./DEPLOYMENT_PERSISTENCE.md) (Turso + B2 setup) and
+> [`PRODUCTION_TODO.md`](./PRODUCTION_TODO.md) (roadmap).
+
 ## Project Overview
 
 Book2Audio converts uploaded documents (PDF, EPUB, DOCX, TXT) into audiobooks with chapter-aware playback. It has three clients: a Next.js web frontend, a React Native (Expo) mobile app, and a FastAPI backend.
