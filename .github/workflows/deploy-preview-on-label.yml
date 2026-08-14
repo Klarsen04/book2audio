@@ -1,0 +1,68 @@
+name: Deploy preview on label
+
+# Vercel only builds on a commit push or PR-open — it ignores "labeled" events.
+# So when the "deploy-preview" label is added, this workflow asks the Vercel API
+# to redeploy the PR's current commit. No new git commit is created.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  redeploy:
+    if: github.event.label.name == 'deploy-preview'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+      PROJECT_NAME: ${{ github.event.repository.name }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Redeploy the PR's Vercel deployment
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VERCEL_TOKEN}" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set. Add it in Settings → Secrets and variables → Actions (Secrets tab)."
+            exit 1
+          fi
+          if [ -z "${PROJECT_ID}" ] || [ -z "${TEAM_ID}" ]; then
+            echo "::error::VERCEL_PROJECT_ID and/or VERCEL_TEAM_ID repo variables are not set. Add them in Settings → Secrets and variables → Actions (Variables tab)."
+            exit 1
+          fi
+
+          echo "Looking up the Vercel deployment for commit $SHA ..."
+          DEPLOY_UID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$PROJECT_ID&teamId=$TEAM_ID&limit=50" \
+            | SHA="$SHA" python3 -c '
+          import sys, json, os
+          sha = os.environ["SHA"]
+          data = json.load(sys.stdin)
+          for d in data.get("deployments", []):
+              if d.get("meta", {}).get("githubCommitSha") == sha:
+                  print(d["uid"]); break
+          ')
+
+          if [ -z "$DEPLOY_UID" ]; then
+            echo "::error::No Vercel deployment found yet for commit $SHA. Wait for the initial (Ignored) deployment to register, then re-add the label."
+            exit 1
+          fi
+
+          echo "Found deployment $DEPLOY_UID — redeploying (preserves the PR's git metadata) ..."
+          RESP=$(curl -s -X POST -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+            "https://api.vercel.com/v13/deployments?teamId=$TEAM_ID&forceNew=1" \
+            -d "{\"deploymentId\":\"$DEPLOY_UID\",\"name\":\"$PROJECT_NAME\"}")
+
+          echo "$RESP" | python3 -c '
+          import sys, json
+          d = json.load(sys.stdin)
+          if d.get("id") or d.get("url"):
+              print("✅ Redeploy started:", d.get("url", d.get("id")))
+          else:
+              print("::error::Redeploy request failed:", json.dumps(d))
+              sys.exit(1)
+          '
