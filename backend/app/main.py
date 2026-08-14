@@ -210,8 +210,8 @@ def _cleanup_loop():
             if hc:
                 try:
                     httpx.get(hc, timeout=10.0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[cleanup] healthcheck ping failed: {e}")
         except Exception as e:
             print(f"[cleanup] error: {e}")
         time.sleep(24 * 3600)
