@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import api from "@/lib/api";
 
 export default function SettingsPage() {
   const [defaultSpeed, setDefaultSpeed] = useState(1);
@@ -9,6 +10,15 @@ export default function SettingsPage() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [dyslexiaMode, setDyslexiaMode] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [feedCopied, setFeedCopied] = useState(false);
+
+  useEffect(() => {
+    api
+      .get("/api/session/feed")
+      .then((res) => setFeedUrl(res.data.feed_url))
+      .catch(() => setFeedUrl(null)); // no session yet → nothing to show
+  }, []);
 
   useEffect(() => {
     const speed = localStorage.getItem("playback_speed");
@@ -132,6 +142,36 @@ export default function SettingsPage() {
             </label>
           </div>
         </div>
+
+        {/* Listen in a podcast app */}
+        {feedUrl && (
+          <div className="bg-surface p-6">
+            <h3 className="label-mono mb-2 text-paper/50">Listen in a podcast app</h3>
+            <p className="mb-4 font-serif text-sm leading-relaxed text-paper/60">
+              Your converted audiobooks are also a private podcast feed. Paste this
+              URL into Overcast, Apple Podcasts, Pocket Casts, or any podcast app to
+              listen with background play, offline downloads, and car support.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 overflow-x-auto rounded-sm border border-hairline bg-ink px-3 py-2 font-mono text-xs text-paper">
+                {feedUrl}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(feedUrl);
+                  setFeedCopied(true);
+                  setTimeout(() => setFeedCopied(false), 1500);
+                }}
+                className="label-mono shrink-0 rounded-sm bg-gold px-4 py-2 text-ink"
+              >
+                {feedCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="mt-2 label-mono text-paper/40">
+              Keep this link private — anyone with it can hear your library.
+            </p>
+          </div>
+        )}
 
         {/* Data & retention */}
         <div className="bg-surface p-6">
