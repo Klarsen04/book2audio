@@ -56,32 +56,74 @@ def _gemini_generate(prompt: str, max_output_tokens: int) -> str | None:
         return None
 
 
-def _gemini_summarize(text: str, style: str) -> str | None:
+# Optional: OpenRouter (free models like DeepSeek/Llama via an OpenAI-compatible
+# API) as a SECOND rewriting summarizer. Tried after Gemini so that when Gemini
+# hits its low daily limit, big books still get rewritten summaries. Both are
+# optional; without keys we fall back to the extractive summarizer below.
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+
+def _openrouter_generate(prompt: str, max_output_tokens: int) -> str | None:
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        return None
+    try:
+        import httpx
+
+        resp = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": OPENROUTER_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_output_tokens,
+                "temperature": 0.4,
+            },
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        choices = resp.json().get("choices") or []
+        if not choices:
+            return None
+        return (choices[0].get("message") or {}).get("content", "").strip() or None
+    except Exception as e:
+        logger.warning(f"OpenRouter summarize unavailable, falling back: {e}")
+        return None
+
+
+def _summary_prompt(style: str, snippet: str) -> tuple[str, int]:
+    """Return (prompt, max_output_tokens) for a summary style. Shared by all
+    LLM providers so they produce consistent output."""
+    if style == "intro":
+        return (
+            "Write a spoken introduction (max 150 words, plain narration, no markdown, "
+            "no title, no bullet points) that previews what the following text is about, "
+            "as if introducing an audiobook.\n\nTEXT:\n" + snippet,
+            300,
+        )
+    if style == "short":
+        return (
+            "Summarize the following text as plain spoken narration (no markdown, no lists), "
+            "to roughly 15% of its length, keeping the key points in reading order.\n\nTEXT:\n"
+            + snippet,
+            800,
+        )
+    return (
+        "Summarize the following text as plain spoken narration (no markdown, no lists), "
+        "to roughly one third of its length, preserving the main points and reading order.\n\nTEXT:\n"
+        + snippet,
+        1400,
+    )
+
+
+def _llm_summarize(text: str, style: str) -> str | None:
+    """Try Gemini, then OpenRouter. Returns None (→ extractive fallback) if
+    neither is configured or both fail/are rate-limited."""
     body = text.strip()
     if len(body) < 400:  # too short to improve on
         return None
-    snippet = body[:_GEMINI_INPUT_CHARS]
-    if style == "intro":
-        prompt = (
-            "Write a spoken introduction (max 150 words, plain narration, no markdown, "
-            "no title, no bullet points) that previews what the following text is about, "
-            "as if introducing an audiobook.\n\nTEXT:\n" + snippet
-        )
-        return _gemini_generate(prompt, 300)
-    if style == "short":
-        prompt = (
-            "Summarize the following text as plain spoken narration (no markdown, no lists), "
-            "to roughly 15% of its length, keeping the key points in reading order.\n\nTEXT:\n"
-            + snippet
-        )
-        return _gemini_generate(prompt, 800)
-    # long
-    prompt = (
-        "Summarize the following text as plain spoken narration (no markdown, no lists), "
-        "to roughly one third of its length, preserving the main points and reading order.\n\nTEXT:\n"
-        + snippet
-    )
-    return _gemini_generate(prompt, 1400)
+    prompt, max_tokens = _summary_prompt(style, body[:_GEMINI_INPUT_CHARS])
+    return _gemini_generate(prompt, max_tokens) or _openrouter_generate(prompt, max_tokens)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -135,12 +177,12 @@ def _summarize(text: str, ratio: float, floor: int) -> str:
 
 def summarize_long(text: str) -> str:
     """Long summary — Gemini (rewritten) if available, else extractive (~35%)."""
-    return _gemini_summarize(text, "long") or _summarize(text, LONG_SUMMARY_RATIO, floor=2)
+    return _llm_summarize(text, "long") or _summarize(text, LONG_SUMMARY_RATIO, floor=2)
 
 
 def summarize_short(text: str) -> str:
     """Short summary — Gemini (rewritten) if available, else extractive (~12%)."""
-    return _gemini_summarize(text, "short") or _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
+    return _llm_summarize(text, "short") or _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
 
 
 # Spoken-intro ("preread") summary: a brief overview read at the very start of the
@@ -154,7 +196,7 @@ def summarize_intro(text: str) -> str:
     Unlike summarize_long/short this does NOT replace the audio — it's prepended
     to it. Returns the summary body (the caller adds any lead-in phrasing).
     """
-    summary = _gemini_summarize(text, "intro") or _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
+    summary = _llm_summarize(text, "intro") or _summarize(text, SHORT_SUMMARY_RATIO, floor=1)
     words = summary.split()
     if len(words) > INTRO_MAX_WORDS:
         summary = " ".join(words[:INTRO_MAX_WORDS]).rstrip(",;:") + "…"
