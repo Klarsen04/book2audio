@@ -247,6 +247,7 @@ async def health_check():
         import gtts
         has_gtts = True
     except ImportError:
+        # gTTS is an optional TTS provider; absence just means it's unavailable.
         pass
     from app.tts.edge import USE_EDGE
     converting, queued = _queue_counts()

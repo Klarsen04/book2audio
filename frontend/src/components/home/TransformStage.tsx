@@ -1,9 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { gsap, ScrollTrigger, useGSAP, prefersReducedMotion } from "@/lib/gsap";
+import { gsap, useGSAP, prefersReducedMotion } from "@/lib/gsap";
 import WaveCanvas, { WaveHandle } from "@/components/motion/WaveCanvas";
-import ManuscriptPage from "@/components/motion/ManuscriptPage";
 
 const LIFT_LINE = "Every page becomes a voice you can hear".split(" ");
 const VOICES = ["Joanna", "Matthew", "Ruth", "Stephen"];

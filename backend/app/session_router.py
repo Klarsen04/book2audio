@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.session import (
-    get_session,
     hash_key,
     normalize_key,
     create_session_token,
