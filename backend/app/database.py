@@ -285,6 +285,13 @@ def init_db():
             # now so existing sessions get a full grace window (not reaped at once).
             conn.execute("ALTER TABLE users ADD COLUMN last_active_at TEXT")
             conn.execute("UPDATE users SET last_active_at = datetime('now') WHERE last_active_at IS NULL")
+        if "feed_token" not in cols:
+            # Random per-session token for the private podcast RSS feed URL
+            # (decoupled from the restore key). Generated on first request.
+            conn.execute("ALTER TABLE users ADD COLUMN feed_token TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_feed_token ON users(feed_token)"
+            )
 
         doc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(documents)").fetchall()}
         if "audio_bytes" not in doc_cols:

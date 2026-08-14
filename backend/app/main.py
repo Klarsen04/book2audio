@@ -190,6 +190,8 @@ def _split_chapters_into_parts(chapters, max_words: int):
 app.include_router(session_router)
 app.include_router(library_router)
 app.include_router(playback_router)
+from app.feed_router import router as feed_router
+app.include_router(feed_router)
 
 
 def _cleanup_loop():
@@ -202,6 +204,14 @@ def _cleanup_loop():
             removed = cleanup_abandoned_sessions()
             if removed:
                 print(f"[cleanup] removed {removed} abandoned session(s)")
+            # Dead-man's-switch: ping healthchecks.io so we're alerted if this
+            # daily job ever stops running. No-op if HEALTHCHECK_URL isn't set.
+            hc = os.environ.get("HEALTHCHECK_URL")
+            if hc:
+                try:
+                    httpx.get(hc, timeout=10.0)
+                except Exception as e:
+                    print(f"[cleanup] healthcheck ping failed: {e}")
         except Exception as e:
             print(f"[cleanup] error: {e}")
         time.sleep(24 * 3600)
