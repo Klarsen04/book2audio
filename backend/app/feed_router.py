@@ -42,8 +42,18 @@ def _ensure_feed_token(user_id: str) -> str:
         row = conn.execute("SELECT feed_token FROM users WHERE id = ?", (user_id,)).fetchone()
         token = row["feed_token"] if row else None
         if not token:
-            token = secrets.token_urlsafe(24)
-            conn.execute("UPDATE users SET feed_token = ? WHERE id = ?", (token, user_id))
+            # Two concurrent mints must not clobber each other (the loser's URL
+            # would 404 forever): only the first UPDATE lands, then re-read the
+            # winning token.
+            candidate = secrets.token_urlsafe(24)
+            conn.execute(
+                "UPDATE users SET feed_token = ? WHERE id = ? AND feed_token IS NULL",
+                (candidate, user_id),
+            )
+            row = conn.execute(
+                "SELECT feed_token FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            token = (row["feed_token"] if row else None) or candidate
     return token
 
 

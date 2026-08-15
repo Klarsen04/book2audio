@@ -189,7 +189,11 @@ def get_connection():
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
-    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    # DATABASE_PATH may be a bare filename (no directory component) — makedirs("")
+    # would raise, so only create the parent when there is one.
+    db_dir = os.path.dirname(DATABASE_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -236,14 +240,6 @@ def init_db():
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
-            CREATE TABLE IF NOT EXISTS refresh_tokens (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                token_hash TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -270,7 +266,6 @@ def init_db():
             );
 
             CREATE INDEX IF NOT EXISTS idx_documents_user ON documents(user_id);
-            CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
         """)
 
         # --- Lightweight migrations for pre-existing databases ---
@@ -303,3 +298,7 @@ def init_db():
             # and chain them (Part 1 → 2 → 3 …) regardless of created_at.
             conn.execute("ALTER TABLE documents ADD COLUMN part_group TEXT")
             conn.execute("ALTER TABLE documents ADD COLUMN part_index INTEGER")
+        if "error" not in doc_cols:
+            # Human-readable failure reason, so /api/status can still explain an
+            # errored doc after the in-memory progress entry is gone (restart).
+            conn.execute("ALTER TABLE documents ADD COLUMN error TEXT")

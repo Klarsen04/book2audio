@@ -1,6 +1,6 @@
 """Session endpoints: inspect the current session, restore by key, sign out."""
 
-from fastapi import APIRouter, Request, Response, HTTPException
+from fastapi import APIRouter, Depends, Response, HTTPException
 from pydantic import BaseModel
 
 from app.database import get_db
@@ -10,33 +10,27 @@ from app.session import (
     create_session_token,
     set_session_cookie,
     clear_session_cookie,
-    verify_session_token,
-    SESSION_COOKIE,
+    optional_session,
 )
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 
 
 @router.get("")
-async def current_session(request: Request):
+async def current_session(user: dict = Depends(optional_session)):
     """
     Report the current session WITHOUT minting a new one. Returns whether the
     visitor already has a library (so the homepage can decide where to send them).
     The restore key itself is never returned here — it's only shown once, at
-    creation time, via the X-Restore-Key header.
+    creation time, via the X-Restore-Key header. Resolves the session via the
+    shared cookie-or-Bearer helper so native mobile (Bearer only) sees its
+    session too, like every other endpoint.
     """
-    token = request.cookies.get(SESSION_COOKIE)
-    if not token:
-        return {"active": False}
-    user_id = verify_session_token(token)
-    if not user_id:
+    if user["id"] == "anonymous":
         return {"active": False}
     with get_db() as conn:
-        row = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not row:
-            return {"active": False}
         count = conn.execute(
-            "SELECT COUNT(*) AS n FROM documents WHERE user_id = ?", (user_id,)
+            "SELECT COUNT(*) AS n FROM documents WHERE user_id = ?", (user["id"],)
         ).fetchone()["n"]
     return {"active": True, "document_count": count}
 
