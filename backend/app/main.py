@@ -1171,8 +1171,10 @@ def _run_conversion(doc_id: str, voice: str):
             try:
                 if Path(output_path).exists():
                     os.unlink(output_path)
-            except OSError:
-                pass
+            except OSError as e:
+                # Best-effort cleanup: failure to remove the local staging file
+                # should not fail the request path, but should be observable.
+                logger.warning("Failed to remove local output file %s: %s", output_path, e)
             conversion_progress.pop(doc_id, None)
             return
 
