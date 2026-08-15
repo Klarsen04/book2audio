@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import api from '../lib/api';
 import { theme } from '../lib/theme';
@@ -29,13 +30,16 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchLibrary = useCallback(async () => {
     try {
       const response = await api.get('/api/library');
       setDocuments(response.data.documents || []);
+      setFetchError(false);
     } catch (error) {
-      // No session yet / offline — just show the empty state.
+      // Distinguish "couldn't reach the server" from a genuinely empty library.
+      setFetchError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -51,6 +55,43 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
     fetchLibrary();
   }, [fetchLibrary]);
 
+  const startConvert = async (item: Document) => {
+    try {
+      await api.post(`/api/convert/${item.id}?voice=Joanna&audio_type=full&intro=false`);
+      Alert.alert('Converting', 'Your audiobook is on its way — pull down to refresh.');
+      fetchLibrary();
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail;
+      Alert.alert(
+        'Could not convert',
+        typeof detail === 'string' ? detail : detail?.message || 'Please try again.'
+      );
+    }
+  };
+
+  const handlePress = (item: Document) => {
+    const status = item.status.toLowerCase();
+    if (status === 'completed' || status === 'ready') {
+      onSelectDocument(item);
+      return;
+    }
+    if (status === 'converting' || status === 'queued' || status === 'processing') {
+      Alert.alert('Still converting', 'This audiobook is not ready yet — pull down to refresh.');
+      return;
+    }
+    // error / uploaded — offer a (re)convert instead of a dead player.
+    Alert.alert(
+      status === 'error' ? 'Conversion failed' : 'Not converted yet',
+      status === 'error'
+        ? 'The last conversion did not finish. Try converting it again?'
+        : 'Convert this document to an audiobook now?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Convert', onPress: () => startConvert(item) },
+      ]
+    );
+  };
+
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
     const hrs = Math.floor(seconds / 3600);
@@ -62,14 +103,14 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
   const statusColor = (status: string) =>
     ['completed', 'ready'].includes(status.toLowerCase())
       ? theme.gold
-      : ['converting', 'processing'].includes(status.toLowerCase())
+      : ['converting', 'processing', 'queued'].includes(status.toLowerCase())
       ? theme.goldSoft
       : ['error', 'failed'].includes(status.toLowerCase())
       ? theme.burgundy
       : theme.paper40;
 
   const renderItem = ({ item, index }: { item: Document; index: number }) => (
-    <TouchableOpacity style={styles.row} onPress={() => onSelectDocument(item)} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.row} onPress={() => handlePress(item)} activeOpacity={0.7}>
       <Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text>
       <View style={styles.rowBody}>
         <Text style={styles.title} numberOfLines={1}>
@@ -99,7 +140,7 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
   return (
     <View style={styles.container}>
       <FlatList
-        data={documents}
+        data={fetchError ? [] : documents}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
@@ -108,12 +149,24 @@ export default function LibraryScreen({ onSelectDocument }: LibraryScreenProps) 
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.gold} />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Your library is empty</Text>
-            <Text style={styles.emptySubtitle}>
-              Head to Convert to turn your first document into audio.
-            </Text>
-          </View>
+          fetchError ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Couldn't load your library</Text>
+              <Text style={styles.emptySubtitle}>
+                Check your connection — your books are still safe on the server.
+              </Text>
+              <TouchableOpacity style={styles.retry} onPress={fetchLibrary}>
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Your library is empty</Text>
+              <Text style={styles.emptySubtitle}>
+                Head to Convert to turn your first document into audio.
+              </Text>
+            </View>
+          )
         }
       />
     </View>
@@ -146,4 +199,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 100, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 22, fontWeight: '700', color: theme.paper, marginBottom: 8 },
   emptySubtitle: { fontSize: 15, color: theme.paper60, textAlign: 'center', lineHeight: 22 },
+  retry: {
+    marginTop: 20,
+    backgroundColor: theme.gold,
+    borderRadius: theme.radius,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+  },
+  retryText: { color: theme.ink, fontSize: 15, fontWeight: '700' },
 });

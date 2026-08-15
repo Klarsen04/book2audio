@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,12 +34,36 @@ export default function UploadScreen() {
   const [progress, setProgress] = useState(0);
   const [restoreKey, setRestoreKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [totalParts, setTotalParts] = useState(1);
+  const [partsDone, setPartsDone] = useState(0);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollFailuresRef = useRef(0);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  // Never let a poll tick (or its Alert) fire after leaving this screen.
+  useEffect(() => stopPolling, []);
 
   const reset = () => {
+    stopPolling();
     setPhase('pick');
     setFile(null);
     setJobId(null);
     setProgress(0);
+    setTotalParts(1);
+    setPartsDone(0);
+  };
+
+  const errorDetail = (e: any, fallback: string) => {
+    const detail = e?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    return detail?.message || fallback;
   };
 
   const pickDocument = async () => {
@@ -67,14 +91,15 @@ export default function UploadScreen() {
         type: file.mimeType || 'application/octet-stream',
         name: file.name,
       } as any);
-      const res = await api.post('/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Let axios/RN set the multipart Content-Type (with boundary) itself;
+      // parsing a big document can take a while, so give the upload more room
+      // than the default 60s.
+      const res = await api.post('/api/upload', formData, { timeout: 300000 });
       setJobId(res.data.job_id);
       setDocTitle(res.data.title || file.name);
       setPhase('options');
     } catch (e: any) {
-      Alert.alert('Upload failed', e.response?.data?.detail || 'Please try again.');
+      Alert.alert('Upload failed', errorDetail(e, 'Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -85,31 +110,67 @@ export default function UploadScreen() {
     setPhase('converting');
     setProgress(0);
     try {
-      await api.post(
+      const res = await api.post(
         `/api/convert/${jobId}?voice=${voice}&audio_type=${audioType}&intro=${intro}`
       );
-      // Poll status
-      const poll = setInterval(async () => {
+      // Big books split into sibling part-documents; the audiobook is only
+      // "ready" when every part has converted, so poll all of them.
+      const partIds: string[] =
+        res.data?.part_ids && res.data.part_ids.length > 0 ? res.data.part_ids : [jobId];
+      setTotalParts(partIds.length);
+      setPartsDone(0);
+
+      const pending = new Set(partIds);
+      pollFailuresRef.current = 0;
+      stopPolling();
+
+      const finish = async () => {
+        stopPolling();
+        setProgress(100);
+        setRestoreKey(await getRestoreKey());
+        setPhase('done');
+      };
+
+      pollRef.current = setInterval(async () => {
+        // Parts convert one at a time within a session, so polling the first
+        // still-pending part is enough per tick.
+        const currentId = pending.values().next().value as string | undefined;
+        if (!currentId) {
+          finish();
+          return;
+        }
         try {
-          const s = await api.get(`/api/status/${jobId}`);
-          setProgress(s.data.progress || 0);
+          const s = await api.get(`/api/status/${currentId}`);
+          pollFailuresRef.current = 0;
+          const doneCount = partIds.length - pending.size;
           if (s.data.status === 'completed') {
-            clearInterval(poll);
-            setRestoreKey(await getRestoreKey());
-            setPhase('done');
+            pending.delete(currentId);
+            setPartsDone(doneCount + 1);
+            setProgress(Math.round(((doneCount + 1) / partIds.length) * 100));
+            if (pending.size === 0) finish();
           } else if (s.data.status === 'error') {
-            clearInterval(poll);
+            stopPolling();
             Alert.alert('Conversion failed', s.data.error || 'Please try again.');
             setPhase('options');
+          } else {
+            const partProgress = (s.data.progress || 0) / 100;
+            setProgress(Math.round(((doneCount + partProgress) / partIds.length) * 100));
           }
         } catch {
-          clearInterval(poll);
-          Alert.alert('Lost connection', 'Please check the library shortly.');
-          reset();
+          // Tolerate transient blips; conversion continues server-side.
+          pollFailuresRef.current += 1;
+          if (pollFailuresRef.current >= 3) {
+            stopPolling();
+            Alert.alert(
+              'Lost connection',
+              'Conversion continues on the server — check your Library shortly.'
+            );
+            reset();
+          }
         }
-      }, 1500);
+      }, 2000);
     } catch (e: any) {
-      Alert.alert('Could not start', e.response?.data?.detail || 'Please try again.');
+      Alert.alert('Could not start', errorDetail(e, 'Please try again.'));
       setPhase('options');
     }
   };
@@ -188,7 +249,17 @@ export default function UploadScreen() {
       {phase === 'converting' && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={theme.gold} />
-          <Text style={styles.convText}>Converting… {progress}%</Text>
+          <Text style={styles.convText}>
+            {totalParts > 1
+              ? `Converting part ${Math.min(partsDone + 1, totalParts)} of ${totalParts}… ${progress}%`
+              : `Converting… ${progress}%`}
+          </Text>
+          {totalParts > 1 && (
+            <Text style={styles.sub}>
+              Long books convert in parts — finished parts appear in your Library as they
+              complete.
+            </Text>
+          )}
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${progress}%` }]} />
           </View>
