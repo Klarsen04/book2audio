@@ -16,7 +16,8 @@ export default function FloatingUpload() {
   return (
     <motion.div
       // Lift above the now-playing bar so it doesn't get covered.
-      className={`fixed right-6 z-40 transition-[bottom] duration-300 ${
+      // `floating-upload` lets Focus Mode (⌘K) dim this button too.
+      className={`floating-upload fixed right-6 z-40 transition-[bottom] duration-300 ${
         nowPlayingActive ? "bottom-24" : "bottom-6"
       }`}
       initial={{ scale: 0 }}

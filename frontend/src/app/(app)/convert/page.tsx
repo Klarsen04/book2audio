@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import FileUpload from "@/components/FileUpload";
 import ConversionPanel from "@/components/ConversionPanel";
@@ -20,10 +20,14 @@ export default function ConvertPage() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [startConverting, setStartConverting] = useState(false);
+  // Tracks the doc already loaded in state so the URL sync after a fresh
+  // upload doesn't re-fetch (and flicker) the panel.
+  const loadedDocIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const docId = searchParams.get("doc");
-    if (docId) {
+    if (docId && loadedDocIdRef.current !== docId) {
+      loadedDocIdRef.current = docId;
       setLoadingDoc(true);
       api
         .get(`/api/library/${docId}`)
@@ -45,6 +49,10 @@ export default function ConvertPage() {
 
   const handleUploadComplete = (result: UploadResult) => {
     setUploadResult(result);
+    // Put the doc id in the URL so a refresh mid-setup or mid-conversion
+    // recovers this panel instead of dropping back to the upload screen.
+    loadedDocIdRef.current = result.job_id;
+    router.replace(`/convert?doc=${result.job_id}`, { scroll: false });
   };
 
   const handleConversionComplete = () => {
@@ -104,6 +112,7 @@ export default function ConvertPage() {
               onBack={() => {
                 setUploadResult(null);
                 setStartConverting(false);
+                loadedDocIdRef.current = null;
                 router.replace("/convert");
               }}
             />

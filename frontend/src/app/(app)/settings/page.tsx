@@ -8,7 +8,6 @@ export default function SettingsPage() {
   const [defaultSpeed, setDefaultSpeed] = useState(1);
   const [defaultVoice, setDefaultVoice] = useState("Joanna");
   const [autoScroll, setAutoScroll] = useState(true);
-  const [dyslexiaMode, setDyslexiaMode] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feedUrl, setFeedUrl] = useState<string | null>(null);
   const [feedCopied, setFeedCopied] = useState(false);
@@ -27,20 +26,12 @@ export default function SettingsPage() {
     if (voice) setDefaultVoice(voice);
     const scroll = localStorage.getItem("auto_scroll");
     if (scroll !== null) setAutoScroll(scroll === "true");
-    const dyslexia = localStorage.getItem("dyslexia_mode");
-    if (dyslexia !== null) setDyslexiaMode(dyslexia === "true");
   }, []);
 
   const handleSave = () => {
     localStorage.setItem("playback_speed", String(defaultSpeed));
     localStorage.setItem("default_voice", defaultVoice);
     localStorage.setItem("auto_scroll", String(autoScroll));
-    localStorage.setItem("dyslexia_mode", String(dyslexiaMode));
-    if (dyslexiaMode) {
-      document.documentElement.classList.add("dyslexia-mode");
-    } else {
-      document.documentElement.classList.remove("dyslexia-mode");
-    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -122,24 +113,11 @@ export default function SettingsPage() {
               </button>
             </label>
 
-            <label className="flex cursor-pointer items-center justify-between">
-              <div>
-                <p className="font-display text-lg text-paper">Dyslexia-friendly reader</p>
-                <p className="font-serif text-sm text-paper/50">Wider spacing, larger text, and a dyslexia-optimized font</p>
-              </div>
-              <button
-                onClick={() => setDyslexiaMode(!dyslexiaMode)}
-                className={`relative h-6 w-11 rounded-full transition-colors ${
-                  dyslexiaMode ? "bg-gold" : "bg-paper/15"
-                }`}
-              >
-                <div
-                  className={`absolute top-1 h-4 w-4 rounded-full transition-transform ${
-                    dyslexiaMode ? "left-6 bg-ink" : "left-1 bg-paper"
-                  }`}
-                />
-              </button>
-            </label>
+            <p className="font-serif text-sm text-paper/50">
+              Looking for a dyslexia-friendly font? It&apos;s in the reader itself —
+              open a book and pick <span className="text-paper/70">Dyslexic</span> under
+              the reader&apos;s ⋮ settings.
+            </p>
           </div>
         </div>
 

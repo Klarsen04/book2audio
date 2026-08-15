@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession } from "@/contexts/SessionContext";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { showToast } from "./Toast";
 
 const NAV_LINKS = [
   { href: "/library", label: "Library" },
@@ -28,7 +29,13 @@ export default function NavBar() {
 
   const doSignOut = async () => {
     setConfirmSignOut(false);
-    await signOut();
+    try {
+      await signOut();
+    } catch {
+      // Network failure — the device is still attached; tell the user.
+      showToast("Sign out failed — check your connection and try again");
+      return;
+    }
     // Return to the animated marketing homepage.
     router.push("/");
   };

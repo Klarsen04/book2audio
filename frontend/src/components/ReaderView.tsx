@@ -42,6 +42,7 @@ interface Props {
   currentChapterIndex: number;
   onChapterSelect: (index: number) => void;
   onPlayFromText: (chapterIndex: number, textOffset: string) => void;
+  onHighlight?: (chapterIndex: number, text: string) => void;
   isPlaying: boolean;
   chapterProgress?: number;
   searchQuery?: string;
@@ -52,6 +53,7 @@ export default function ReaderView({
   currentChapterIndex,
   onChapterSelect,
   onPlayFromText,
+  onHighlight,
   isPlaying,
   chapterProgress = 0,
   searchQuery,
@@ -63,6 +65,8 @@ export default function ReaderView({
   const [confirmPosition, setConfirmPosition] = useState({ x: 0, y: 0 });
   const [showSettings, setShowSettings] = useState(false);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
+  // Honors the "Auto-scroll reader" preference from Settings.
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
   const [matchCount, setMatchCount] = useState(0);
   const textRef = useRef<HTMLDivElement>(null);
   const tocRef = useRef<HTMLDivElement>(null);
@@ -85,6 +89,10 @@ export default function ReaderView({
     } catch {
       // Ignore parse errors, use defaults
     }
+    try {
+      const scroll = localStorage.getItem("auto_scroll");
+      if (scroll !== null) setAutoScrollEnabled(scroll === "true");
+    } catch {}
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -131,6 +139,7 @@ export default function ReaderView({
 
   // Auto-scroll to active paragraph only when it changes and user hasn't scrolled recently
   useEffect(() => {
+    if (!autoScrollEnabled) return;
     if (!isPlaying || selectedChapter !== currentChapterIndex) return;
     const currentChapter = chapters[selectedChapter];
     if (!currentChapter?.text) return;
@@ -159,7 +168,7 @@ export default function ReaderView({
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [isPlaying, selectedChapter, currentChapterIndex, chapterProgress, chapters]);
+  }, [autoScrollEnabled, isPlaying, selectedChapter, currentChapterIndex, chapterProgress, chapters]);
 
   useEffect(() => {
     setSelectedChapter(currentChapterIndex);
@@ -575,6 +584,21 @@ export default function ReaderView({
                   </svg>
                   Play from here
                 </button>
+                {onHighlight && (
+                  <button
+                    onClick={() => {
+                      onHighlight(selectedChapter, selectedText);
+                      setShowPlayConfirm(false);
+                      window.getSelection()?.removeAllRanges();
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-sm text-xs font-semibold text-gold border border-gold/30 hover:bg-gold/10 transition-all"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Highlight
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setShowPlayConfirm(false);

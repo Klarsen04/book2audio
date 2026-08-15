@@ -25,30 +25,63 @@ interface Props {
   onHighlightClick?: (highlight: Highlight) => void;
 }
 
+function readHighlights(docId: string): Highlight[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`highlights_${docId}`) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHighlights(docId: string, highlights: Highlight[]) {
+  localStorage.setItem(`highlights_${docId}`, JSON.stringify(highlights));
+  // Separate hook instances (ReaderView popup vs. this panel) stay in sync
+  // through this event.
+  window.dispatchEvent(new CustomEvent("highlights-changed", { detail: docId }));
+}
+
+// Add a highlight from anywhere (e.g. the reader's selection popup) without
+// needing this hook's instance.
+export function addHighlightForDoc(
+  docId: string,
+  text: string,
+  chapterIndex: number,
+  color: string = COLORS[0].value
+): Highlight {
+  const h: Highlight = {
+    id: Math.random().toString(36).slice(2),
+    text,
+    chapterIndex,
+    color,
+    note: "",
+    createdAt: Date.now(),
+  };
+  writeHighlights(docId, [...readHighlights(docId), h]);
+  return h;
+}
+
 export function useHighlights(docId: string) {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const storageKey = `highlights_${docId}`;
 
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) setHighlights(JSON.parse(saved));
-  }, [storageKey]);
+    setHighlights(readHighlights(docId));
+    const onChange = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === docId) {
+        setHighlights(readHighlights(docId));
+      }
+    };
+    window.addEventListener("highlights-changed", onChange);
+    return () => window.removeEventListener("highlights-changed", onChange);
+  }, [docId]);
 
   const save = (updated: Highlight[]) => {
     setHighlights(updated);
-    localStorage.setItem(storageKey, JSON.stringify(updated));
+    writeHighlights(docId, updated);
   };
 
   const addHighlight = (text: string, chapterIndex: number, color: string = COLORS[0].value) => {
-    const h: Highlight = {
-      id: Math.random().toString(36).slice(2),
-      text,
-      chapterIndex,
-      color,
-      note: "",
-      createdAt: Date.now(),
-    };
-    save([...highlights, h]);
+    const h = addHighlightForDoc(docId, text, chapterIndex, color);
     return h;
   };
 

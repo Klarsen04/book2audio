@@ -169,18 +169,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
   opacity: 1;
 }
 
-/* Dyslexia-friendly reader mode */
-.dyslexia-mode .reader-text {
-  font-family: "OpenDyslexic", "Comic Sans MS", sans-serif !important;
-  letter-spacing: 0.05em;
-  word-spacing: 0.2em;
-  line-height: 2.2 !important;
-  max-width: 60ch;
-}
-.dyslexia-mode .reader-content {
-  background: rgba(255, 248, 220, 0.03);
-}
-
 .hover-lift {
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.3s ease;

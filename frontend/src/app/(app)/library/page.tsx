@@ -7,6 +7,7 @@ import LibraryCard from "@/components/LibraryCard";
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import SaveKeyBanner from "@/components/SaveKeyBanner";
+import { showToast } from "@/components/Toast";
 
 interface Document {
   id: string;
@@ -28,7 +29,7 @@ interface Collection {
 type SortOption = "custom" | "recently_played" | "newest" | "oldest";
 type ViewMode = "grid" | "list";
 type FileTypeFilter = "all" | "pdf" | "docx" | "epub" | "url" | "txt";
-type StatusFilter = "all" | "uploaded" | "converting" | "completed";
+type StatusFilter = "all" | "uploaded" | "converting" | "completed" | "error";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -53,6 +54,17 @@ export default function LibraryPage() {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ type: "collection" | "document"; id: string } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [lastPlayed, setLastPlayed] = useState<Record<string, number>>({});
+
+  // Local last-played timestamps (written by the player page) drive the
+  // "Recently played" sort.
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("last_played") || "{}");
+      if (parsed && typeof parsed === "object") setLastPlayed(parsed);
+    } catch {}
+  }, []);
 
   // Download the whole library as one .zip of MP3s (one file per book).
   const handleExport = useCallback(async () => {
@@ -67,8 +79,18 @@ export default function LibraryPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-    } catch {
-      // best-effort; export is optional
+    } catch (err: any) {
+      // With responseType "blob" the error body is a Blob — decode it to get
+      // the backend's message (e.g. "No completed audiobooks to export yet").
+      let message = "Export failed. Please try again.";
+      try {
+        const data = err.response?.data;
+        if (data instanceof Blob) {
+          const parsed = JSON.parse(await data.text());
+          if (typeof parsed.detail === "string") message = parsed.detail;
+        }
+      } catch {}
+      showToast(message);
     } finally {
       setExporting(false);
     }
@@ -204,8 +226,11 @@ export default function LibraryPage() {
     try {
       const res = await api.get("/api/library");
       setDocuments(res.data.documents);
+      setFetchError(false);
     } catch {
-      // ignore
+      // Distinguish "backend unreachable" from "library is empty" — showing
+      // the empty state on an outage looks like the library was wiped.
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -255,14 +280,23 @@ export default function LibraryPage() {
           pdf: ["pdf"],
           docx: ["docx", "doc"],
           epub: ["epub"],
-          url: ["url", "web"],
+          // URL uploads are stored with format "html"
+          url: ["url", "web", "html"],
           txt: ["txt", "text"],
         };
         const allowedFormats = formatMap[fileTypeFilter] || [];
         if (!allowedFormats.includes(d.format?.toLowerCase())) return false;
       }
-      // Status filter (case-insensitive to handle backend variations)
-      if (statusFilter !== "all" && d.status?.toLowerCase() !== statusFilter) return false;
+      // Status filter (case-insensitive to handle backend variations).
+      // "In Progress" covers both queued and actively-converting docs.
+      if (statusFilter !== "all") {
+        const s = d.status?.toLowerCase();
+        if (statusFilter === "converting") {
+          if (s !== "converting" && s !== "queued") return false;
+        } else if (s !== statusFilter) {
+          return false;
+        }
+      }
       return true;
     })
     .filter((d) => !search || d.title.toLowerCase().includes(search.toLowerCase()))
@@ -272,9 +306,14 @@ export default function LibraryPage() {
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         case "oldest":
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case "recently_played":
-          // Fall back to newest for now (could be enhanced with last_played field)
+        case "recently_played": {
+          // Timestamps are recorded locally whenever a player page opens.
+          const tA = lastPlayed[a.id] ?? 0;
+          const tB = lastPlayed[b.id] ?? 0;
+          if (tA !== tB) return tB - tA;
+          // Never-played docs sort by newest.
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
         case "custom":
         default:
           if (documentOrder.length > 0) {
@@ -514,6 +553,11 @@ export default function LibraryPage() {
                 { key: "completed", label: "Done", icon: (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )},
+                { key: "error", label: "Failed", icon: (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )},
               ] as { key: StatusFilter; label: string; icon: React.ReactNode }[]).map((item) => (
@@ -761,7 +805,29 @@ export default function LibraryPage() {
         )}
 
         {/* Content area */}
-        {documents.length === 0 ? (
+        {fetchError && documents.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-24 bg-surface border border-hairline rounded-sm"
+          >
+            <div className="text-6xl mb-6">📡</div>
+            <h2 className="text-xl font-display text-paper mb-2">Couldn&apos;t reach the server</h2>
+            <p className="text-paper/60 text-sm mb-8 max-w-sm mx-auto">
+              Your library is safe — we just couldn&apos;t load it. Check your
+              connection and try again.
+            </p>
+            <button
+              onClick={() => {
+                setLoading(true);
+                fetchDocuments();
+              }}
+              className="label-mono inline-flex px-8 py-3 rounded-full bg-gold text-ink hover:scale-[1.02] transition-all active:scale-[0.98]"
+            >
+              Retry
+            </button>
+          </motion.div>
+        ) : documents.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -864,7 +930,15 @@ export default function LibraryPage() {
                       </h3>
                       <span className="label-mono text-paper/40">
                         {doc.format?.toUpperCase()}
-                        {isReady ? "" : doc.status === "converting" ? " · Converting" : doc.status === "uploaded" ? " · Not started" : " · Failed"}
+                        {isReady
+                          ? ""
+                          : doc.status === "converting"
+                          ? " · Converting"
+                          : doc.status === "queued"
+                          ? " · Queued"
+                          : doc.status === "uploaded"
+                          ? " · Not started"
+                          : " · Failed"}
                       </span>
                     </Link>
 
@@ -877,9 +951,21 @@ export default function LibraryPage() {
                     {/* Play / convert affordance */}
                     <Link
                       href={href}
-                      className="label-mono shrink-0 px-3 py-1.5 rounded-full bg-gold/10 text-gold border border-gold/30 hover:bg-gold hover:text-ink transition-all"
+                      className={`label-mono shrink-0 px-3 py-1.5 rounded-full transition-all ${
+                        doc.status === "error"
+                          ? "bg-burgundy/10 text-burgundy-soft border border-burgundy/30 hover:bg-burgundy/20"
+                          : "bg-gold/10 text-gold border border-gold/30 hover:bg-gold hover:text-ink"
+                      }`}
                     >
-                      {isReady ? "Play" : doc.status === "uploaded" ? "Convert" : doc.status}
+                      {isReady
+                        ? "Play"
+                        : doc.status === "uploaded"
+                        ? "Convert"
+                        : doc.status === "queued"
+                        ? "Queued ›"
+                        : doc.status === "converting"
+                        ? "Converting ›"
+                        : "Retry"}
                     </Link>
 
                     {/* Delete */}

@@ -22,6 +22,13 @@ export default function FileUpload({ onUploadComplete }: Props) {
 
   const acceptedTypes = [".pdf", ".epub", ".docx", ".txt"];
 
+  // `detail` may be a plain string or a structured object ({code, message}).
+  const extractError = (err: any, fallback: string): string => {
+    const detail = err.response?.data?.detail;
+    if (detail && typeof detail === "object") return detail.message || fallback;
+    return detail || fallback;
+  };
+
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -75,7 +82,7 @@ export default function FileUpload({ onUploadComplete }: Props) {
       });
       onUploadComplete(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Upload failed. Please try again.");
+      setError(extractError(err, "Upload failed. Please try again."));
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -91,7 +98,7 @@ export default function FileUpload({ onUploadComplete }: Props) {
       const response = await api.post("/api/upload-url", { url: urlValue.trim() });
       onUploadComplete(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to fetch URL. Please try again.");
+      setError(extractError(err, "Failed to fetch URL. Please try again."));
     } finally {
       setIsUploading(false);
     }
@@ -106,7 +113,7 @@ export default function FileUpload({ onUploadComplete }: Props) {
       const response = await api.post("/api/upload-text", { text: textValue.trim(), title: "Pasted text" });
       onUploadComplete(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to convert text. Please try again.");
+      setError(extractError(err, "Failed to convert text. Please try again."));
     } finally {
       setIsUploading(false);
     }

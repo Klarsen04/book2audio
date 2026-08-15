@@ -54,6 +54,12 @@ export default function ConversionPanel({
   const [currentChapter, setCurrentChapter] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  // "poll" = we lost contact while a conversion may still be running server-side.
+  const [errorSource, setErrorSource] = useState<"poll" | "convert" | null>(null);
+  const [voicesError, setVoicesError] = useState(false);
+  const pollFailuresRef = useRef(0);
+  // ETA extrapolation is only meaningful when this page witnessed the start.
+  const startedHereRef = useRef(false);
   const [freeingSpace, setFreeingSpace] = useState(false);
   const [splitInfo, setSplitInfo] = useState<{ totalParts: number } | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("");
@@ -71,9 +77,12 @@ export default function ConversionPanel({
   }, [startConverting]);
 
   useEffect(() => {
-    api.get("/api/voices").then((res) => {
-      setVoices(res.data.voices);
-    });
+    api
+      .get("/api/voices")
+      .then((res) => {
+        setVoices(res.data.voices);
+      })
+      .catch(() => setVoicesError(true));
   }, []);
 
   useEffect(() => {
@@ -82,6 +91,7 @@ export default function ConversionPanel({
     const interval = setInterval(async () => {
       try {
         const res = await api.get(`/api/status/${jobId}`);
+        pollFailuresRef.current = 0;
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
         setJobStatus(res.data.status);
@@ -92,15 +102,26 @@ export default function ConversionPanel({
           setIsConverting(false);
           fireConfetti();
           onConversionComplete();
-        } else if (res.data.status === "error") {
+        } else if (res.data.status === "error" || res.data.error) {
+          // A converting doc with an error message means it was interrupted
+          // (e.g. by a server restart) — surface it so the user can retry.
           clearInterval(interval);
           setIsConverting(false);
           setError(res.data.error || "Conversion failed");
+          setErrorSource("convert");
         }
       } catch {
-        clearInterval(interval);
-        setIsConverting(false);
-        setError("Lost connection to server");
+        // A single failed poll is usually a network blip — the conversion
+        // keeps running server-side. Only give up after several in a row.
+        pollFailuresRef.current += 1;
+        if (pollFailuresRef.current >= 4) {
+          clearInterval(interval);
+          setIsConverting(false);
+          setError(
+            "Lost connection to the server — your conversion is likely still running."
+          );
+          setErrorSource("poll");
+        }
       }
     }, 1500);
 
@@ -111,8 +132,11 @@ export default function ConversionPanel({
     setIsConverting(true);
     setError(null);
     setErrorCode(null);
+    setErrorSource(null);
     setProgress(0);
+    pollFailuresRef.current = 0;
     convertStartRef.current = Date.now();
+    startedHereRef.current = true;
 
     try {
       const res = await api.post(
@@ -132,7 +156,18 @@ export default function ConversionPanel({
         setError(detail || "Failed to start conversion");
         setErrorCode(null);
       }
+      setErrorSource("convert");
     }
+  };
+
+  // Resume watching a conversion we lost contact with (it never stopped
+  // server-side) without re-submitting it.
+  const handleResumePolling = () => {
+    setError(null);
+    setErrorCode(null);
+    setErrorSource(null);
+    pollFailuresRef.current = 0;
+    setIsConverting(true);
   };
 
   // Download the whole library as one .zip so the user keeps their audiobooks.
@@ -165,31 +200,36 @@ export default function ConversionPanel({
     }
   };
 
+  const previewVoiceRef = useRef<string | null>(null);
+
   const playPreview = (voiceId: string) => {
     const audio = previewAudioRef.current;
     if (!audio) return;
 
     if (previewPlaying === voiceId) {
       audio.pause();
-      setPreviewPlaying(null);
       return;
     }
 
+    previewVoiceRef.current = voiceId;
     audio.src = `/api/voices/preview/${voiceId}`;
-    audio.play().catch(() => {});
-    setPreviewPlaying(voiceId);
+    audio.play().catch(() => setPreviewPlaying(null));
   };
 
+  // The speaker icons track the audio element's own events, so rapid voice
+  // switches can't leave the state pointing at the wrong voice.
   useEffect(() => {
     const audio = previewAudioRef.current;
     if (!audio) return;
-    const onEnd = () => setPreviewPlaying(null);
-    const onPause = () => setPreviewPlaying(null);
-    audio.addEventListener("ended", onEnd);
-    audio.addEventListener("pause", onPause);
+    const onPlay = () => setPreviewPlaying(previewVoiceRef.current);
+    const onStop = () => setPreviewPlaying(null);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("ended", onStop);
+    audio.addEventListener("pause", onStop);
     return () => {
-      audio.removeEventListener("ended", onEnd);
-      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("ended", onStop);
+      audio.removeEventListener("pause", onStop);
     };
   }, []);
 
@@ -283,7 +323,7 @@ export default function ConversionPanel({
           ].map((type) => (
             <button
               key={type.id}
-              onClick={() => setAudioType(type.id)}
+              onClick={() => { setAudioType(type.id); if (errorCode !== "quota_exceeded") { setError(null); setErrorSource(null); } }}
               disabled={isConverting}
               className={`flex flex-col items-start gap-2 p-4 rounded-sm text-left transition-all ${
                 audioType === type.id
@@ -337,7 +377,7 @@ export default function ConversionPanel({
             type="button"
             role="switch"
             aria-checked={introSummary}
-            onClick={() => setIntroSummary((v) => !v)}
+            onClick={() => { setIntroSummary((v) => !v); if (errorCode !== "quota_exceeded") { setError(null); setErrorSource(null); } }}
             disabled={isConverting}
             className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
               introSummary ? "bg-gold" : "bg-paper/15"
@@ -358,6 +398,11 @@ export default function ConversionPanel({
           <h3 className="label-mono text-paper/60">Choose a voice</h3>
           <span className="text-xs text-paper/40 font-serif">Click speaker icon to preview</span>
         </div>
+        {voicesError && voices.length === 0 && (
+          <p className="mb-3 text-xs text-paper/40 font-serif">
+            Couldn&apos;t load the voice list — the default voice ({selectedVoice}) will be used.
+          </p>
+        )}
         <motion.div
           className="grid grid-cols-2 sm:grid-cols-4 gap-2"
           initial="hidden"
@@ -377,7 +422,7 @@ export default function ConversionPanel({
               }}
             >
               <button
-                onClick={() => setSelectedVoice(voice.id)}
+                onClick={() => { setSelectedVoice(voice.id); if (errorCode !== "quota_exceeded") { setError(null); setErrorSource(null); } }}
                 disabled={isConverting}
                 className={`w-full px-4 py-3 rounded-sm text-sm font-serif transition-all text-left ${
                   selectedVoice === voice.id
@@ -455,15 +500,16 @@ export default function ConversionPanel({
               <p className="text-xs text-paper/40 mt-3 font-serif">
                 {(() => {
                   const start = convertStartRef.current;
-                  if (progress > 2 && progress < 100 && start) {
-                    // Extrapolate from real elapsed time — accurate once underway.
+                  // Only extrapolate when this page witnessed the start —
+                  // resuming an already-running job would skew the estimate.
+                  if (progress > 2 && progress < 100 && start && startedHereRef.current) {
                     const elapsedMin = (Date.now() - start) / 60000;
                     const remaining = Math.max(1, Math.ceil((elapsedMin / progress) * (100 - progress)));
                     return `About ${remaining} min remaining · large books take a while on the free tier`;
                   }
                   return progress >= 100
                     ? "Finishing up…"
-                    : "Estimating… large books can take several minutes.";
+                    : "Converting… large books can take several minutes.";
                 })()}
               </p>
             </>
@@ -472,10 +518,10 @@ export default function ConversionPanel({
       ) : (
         <motion.button
           onClick={handleConvert}
-          disabled={!!error}
+          disabled={errorCode === "quota_exceeded"}
           className="w-full py-4 rounded-sm bg-gold text-ink font-semibold text-lg hover:bg-gold-soft transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
         >
-          Convert to Audiobook
+          {error && errorCode !== "quota_exceeded" ? "Try again" : "Convert to Audiobook"}
         </motion.button>
       )}
 
@@ -512,9 +558,21 @@ export default function ConversionPanel({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-burgundy/10 border border-burgundy/30 rounded-sm p-4 text-burgundy-soft text-sm font-serif"
+          className="bg-burgundy/10 border border-burgundy/30 rounded-sm p-4 text-burgundy-soft text-sm font-serif space-y-3"
         >
-          {error}
+          <p>{error}</p>
+          {errorSource === "poll" ? (
+            <button
+              onClick={handleResumePolling}
+              className="label-mono px-4 py-2 rounded-sm border border-burgundy/40 text-burgundy-soft hover:bg-burgundy/15 transition-all"
+            >
+              Check status again
+            </button>
+          ) : (
+            <p className="text-xs text-paper/40">
+              Adjust the settings above if you like, then press the button to try again.
+            </p>
+          )}
         </motion.div>
       ) : null}
     </div>
