@@ -1181,8 +1181,8 @@ def _run_conversion(doc_id: str, voice: str):
         if storage.use_cloud():
             try:
                 os.unlink(output_path)
-            except OSError:
-                pass
+            except OSError as cleanup_err:
+                print(f"[_run_conversion] could not remove staging file for {doc_id} at {output_path}: {cleanup_err}")
 
         progress["status"] = "completed"
         progress["progress"] = 100
