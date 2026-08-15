@@ -8,7 +8,7 @@ Book2Audio converts uploaded documents (PDF, EPUB, DOCX, TXT) into audiobooks wi
 
 ## Architecture
 
-**Backend** (`backend/`) — Python 3.11, FastAPI + uvicorn. SQLite database (WAL mode). TTS via edge-tts or gTTS (selected by `TTS_PROVIDER` env var; defaults to `polly` which maps to AWS Polly, but the deployed config uses `edge`). Audio processing with pydub (requires ffmpeg). Conversions run in background threads with in-memory progress tracking.
+**Backend** (`backend/`) — Python 3.11, FastAPI + uvicorn. SQLite database (WAL mode). TTS via edge-tts or gTTS (selected by `TTS_PROVIDER` env var; defaults to `edge`, which is what the deployed config uses; `openai` and `polly` are optional paid providers). Audio processing with pydub (requires ffmpeg). Conversions run in background threads with in-memory progress tracking.
 
 **Frontend** (`frontend/`) — Next.js 15 (App Router), React 18, TypeScript, Tailwind CSS. Route group `(app)` holds the product pages (library, player, convert, settings). API calls proxy through Next.js rewrites to the backend (`/api/:path*` → backend:8000). **No login** — the app uses anonymous "restore key" sessions (see below); there is no `(auth)` route group.
 
@@ -80,6 +80,6 @@ documented in `DEPLOYMENT_PERSISTENCE.md`.
 
 ## Deployment
 
-- **Render** — configured via `render.yaml` (backend as Python web service with persistent disk)
+- **Render** — configured via `render.yaml` (backend as a native Python web service on the free tier — **no persistent disk**; set the Turso + B2/R2 env vars or libraries are wiped on every deploy, see `DEPLOYMENT_PERSISTENCE.md`)
 - **Docker** — `docker-compose.yml` for self-hosting; backend requires ffmpeg
 - **Vercel** — `frontend/vercel.json` exists for frontend-only deployment

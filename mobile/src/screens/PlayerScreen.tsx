@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,6 @@ interface PlayerScreenProps {
 const PLAYBACK_SPEEDS = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
 export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -37,24 +36,65 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Refs so the effect cleanup and the (once-registered) playback-status
+  // callback always see the current values, not their initial-render closure.
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const chaptersRef = useRef<Chapter[]>([]);
+  const positionRef = useRef(0);
+  const isPlayingRef = useRef(false);
 
   useEffect(() => {
     loadAudio();
     fetchChapters();
 
     return () => {
-      if (sound) {
-        sound.unloadAsync();
+      savePosition();
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
       }
     };
   }, []);
 
+  // Sync the resume position to the backend every 5s while playing.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isPlayingRef.current) savePosition();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const savePosition = () => {
+    const pos = positionRef.current;
+    if (pos > 0) {
+      api.put(`/api/playback/${document.id}/position`, { position: pos }).catch(() => {});
+    }
+  };
+
   const loadAudio = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
       });
+
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+
+      // Resume where the user left off (synced across web + mobile).
+      let savedPosition = 0;
+      try {
+        const res = await api.get(`/api/playback/${document.id}/position`);
+        savedPosition = res.data?.position || 0;
+      } catch {
+        // No saved position — start from the beginning.
+      }
 
       // Send the session token as a Bearer since expo-av can't read our cookie.
       const authToken = await getSessionToken();
@@ -63,13 +103,20 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
           uri: audioUrl(document.id),
           headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         },
-        { shouldPlay: false, rate: playbackSpeed, shouldCorrectPitch: true },
+        {
+          shouldPlay: false,
+          rate: playbackSpeed,
+          shouldCorrectPitch: true,
+          positionMillis: savedPosition > 5 ? savedPosition * 1000 : 0,
+        },
         onPlaybackStatusUpdate
       );
-      setSound(newSound);
+      soundRef.current = newSound;
       setLoading(false);
     } catch (error) {
-      console.error('Failed to load audio:', error);
+      setLoadError(
+        'This audiobook could not be loaded. It may still be converting, or the connection failed.'
+      );
       setLoading(false);
     }
   };
@@ -85,21 +132,24 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
         startTime: ch.start_time ?? 0,
         endTime: raw[i + 1]?.start_time ?? Number.MAX_SAFE_INTEGER,
       }));
+      chaptersRef.current = mapped;
       setChapters(mapped);
     } catch (error) {
-      console.error('Failed to fetch chapters:', error);
+      // Chapter list is a nice-to-have; playback works without it.
     }
   };
 
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
-      setPosition(status.positionMillis / 1000);
+      const currentTime = status.positionMillis / 1000;
+      positionRef.current = currentTime;
+      isPlayingRef.current = status.isPlaying;
+      setPosition(currentTime);
       setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
       setIsPlaying(status.isPlaying);
 
       // Update current chapter
-      const currentTime = status.positionMillis / 1000;
-      const chapter = chapters.find(
+      const chapter = chaptersRef.current.find(
         (ch) => currentTime >= ch.startTime && currentTime < ch.endTime
       );
       if (chapter) setCurrentChapter(chapter);
@@ -107,24 +157,25 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
   };
 
   const togglePlayPause = async () => {
-    if (!sound) return;
+    if (!soundRef.current) return;
     if (isPlaying) {
-      await sound.pauseAsync();
+      await soundRef.current.pauseAsync();
+      savePosition();
     } else {
-      await sound.playAsync();
+      await soundRef.current.playAsync();
     }
   };
 
   const skipForward = async () => {
-    if (!sound) return;
+    if (!soundRef.current) return;
     const newPosition = Math.min(position + 30, duration) * 1000;
-    await sound.setPositionAsync(newPosition);
+    await soundRef.current.setPositionAsync(newPosition);
   };
 
   const skipBackward = async () => {
-    if (!sound) return;
+    if (!soundRef.current) return;
     const newPosition = Math.max(position - 30, 0) * 1000;
-    await sound.setPositionAsync(newPosition);
+    await soundRef.current.setPositionAsync(newPosition);
   };
 
   const changeSpeed = async () => {
@@ -132,15 +183,20 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
     const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length;
     const newSpeed = PLAYBACK_SPEEDS[nextIndex];
     setPlaybackSpeed(newSpeed);
-    if (sound) {
-      await sound.setRateAsync(newSpeed, true);
+    if (soundRef.current) {
+      await soundRef.current.setRateAsync(newSpeed, true);
     }
   };
 
   const seekToChapter = async (chapter: Chapter) => {
-    if (!sound) return;
-    await sound.setPositionAsync(chapter.startTime * 1000);
+    if (!soundRef.current) return;
+    await soundRef.current.setPositionAsync(chapter.startTime * 1000);
     setCurrentChapter(chapter);
+  };
+
+  const handleBack = () => {
+    savePosition();
+    onBack();
   };
 
   const formatTime = (seconds: number) => {
@@ -164,11 +220,26 @@ export default function PlayerScreen({ document, onBack }: PlayerScreenProps) {
     );
   }
 
+  if (loadError) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorTitle}>Couldn't play this audiobook</Text>
+        <Text style={styles.errorText}>{loadError}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadAudio}>
+          <Text style={styles.retryText}>Try again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleBack} style={styles.errorBack}>
+          <Text style={styles.backText}>Back to Library</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -267,6 +338,37 @@ const styles = StyleSheet.create({
     color: 'rgba(244,241,234,0.62)',
     marginTop: 16,
     fontSize: 14,
+  },
+  errorTitle: {
+    color: '#f4f1ea',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    paddingHorizontal: 32,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: 'rgba(244,241,234,0.62)',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: '#B45309',
+    borderRadius: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  retryText: {
+    color: '#f4f1ea',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  errorBack: {
+    padding: 16,
   },
   header: {
     flexDirection: 'row',

@@ -7,6 +7,7 @@ import PlaybackSpeed from "./PlaybackSpeed";
 import Waveform from "./Waveform";
 import GradientBorder from "./GradientBorder";
 import { showToast } from "./Toast";
+import { setNowPlaying } from "./NowPlaying";
 
 interface Props {
   docId: string;
@@ -44,7 +45,12 @@ export default function AudioPlayer({
   const [loopB, setLoopB] = useState<number | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>("");
   const [audioLoading, setAudioLoading] = useState(true);
+  const [audioError, setAudioError] = useState(false);
   const lastSavedPosition = useRef(0);
+  // Set when a caller-driven seek (chapter click, ?t= link) has been requested;
+  // the saved playback position must not override it.
+  const externalSeekRef = useRef(false);
+  const pendingSeekRef = useRef<number | null>(null);
 
   // Create audio element imperatively (not via JSX) to avoid React re-render issues
   useEffect(() => {
@@ -55,6 +61,8 @@ export default function AudioPlayer({
       audio.pause();
       audio.src = "";
       audioRef.current = null;
+      // Clear the global now-playing bar — nothing is audible anymore.
+      setNowPlaying(null);
     };
   }, []);
 
@@ -64,6 +72,7 @@ export default function AudioPlayer({
     // range/seek (and doesn't pull the whole file into memory). Loading state
     // is driven by the audio element's own events below.
     setAudioLoading(true);
+    setAudioError(false);
     const src = `/api/download/${docId}`;
     setAudioUrl(src);
     if (audioRef.current) {
@@ -74,6 +83,9 @@ export default function AudioPlayer({
 
   useEffect(() => {
     if (seekTarget !== null && seekTarget !== undefined && audioRef.current && audioUrl) {
+      externalSeekRef.current = true;
+      // Re-applied on loadedmetadata in case metadata isn't in yet.
+      pendingSeekRef.current = seekTarget;
       audioRef.current.currentTime = seekTarget;
       setCurrentTime(seekTarget);
       if (autoPlay) {
@@ -93,7 +105,9 @@ export default function AudioPlayer({
       .get(`/api/playback/${docId}/position`)
       .then((res) => {
         const saved = res.data.position;
-        if (saved > 0 && audioRef.current) {
+        // A caller-driven seek (?t= link, chapter click) always wins over the
+        // saved resume position.
+        if (saved > 0 && audioRef.current && !externalSeekRef.current) {
           audioRef.current.currentTime = saved;
           setCurrentTime(saved);
         }
@@ -145,10 +159,14 @@ export default function AudioPlayer({
   useEffect(() => {
     const handleUnload = () => {
       if (audioRef.current) {
-        navigator.sendBeacon(
-          `/api/playback/${docId}/position`,
-          JSON.stringify({ position: audioRef.current.currentTime })
-        );
+        // sendBeacon can only POST, but the backend route is PUT — use a
+        // keepalive fetch so the final position survives the page closing.
+        fetch(`/api/playback/${docId}/position`, {
+          method: "PUT",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: audioRef.current.currentTime }),
+        }).catch(() => {});
       }
     };
     const handleVisibility = () => {
@@ -201,7 +219,14 @@ export default function AudioPlayer({
     };
     const updateDuration = () => {
       setDuration(audio.duration);
-      if (positionLoaded && lastSavedPosition.current > 0) {
+      if (externalSeekRef.current) {
+        // A caller-driven seek beat the metadata — re-apply it now that
+        // seeking is reliable, and never override it with the saved position.
+        if (pendingSeekRef.current !== null) {
+          audio.currentTime = pendingSeekRef.current;
+          pendingSeekRef.current = null;
+        }
+      } else if (positionLoaded && lastSavedPosition.current > 0) {
         audio.currentTime = lastSavedPosition.current;
       }
     };
@@ -211,15 +236,26 @@ export default function AudioPlayer({
       onEnded?.();
       savePosition(audio.currentTime);
     };
-    const stopLoading = () => setAudioLoading(false);
+    const stopLoading = () => {
+      setAudioLoading(false);
+      setAudioError(false);
+    };
     const startLoading = () => setAudioLoading(true);
+    const handleError = () => {
+      setAudioLoading(false);
+      // Only surface a real failure — an empty src (unmount cleanup) also
+      // fires "error".
+      if (audio.src) setAudioError(true);
+      setIsPlaying(false);
+      onPlayingChange?.(false);
+    };
 
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("canplay", stopLoading);
     audio.addEventListener("playing", stopLoading);
-    audio.addEventListener("error", stopLoading);
+    audio.addEventListener("error", handleError);
     audio.addEventListener("waiting", startLoading);
 
     return () => {
@@ -228,10 +264,23 @@ export default function AudioPlayer({
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("canplay", stopLoading);
       audio.removeEventListener("playing", stopLoading);
-      audio.removeEventListener("error", stopLoading);
+      audio.removeEventListener("error", handleError);
       audio.removeEventListener("waiting", startLoading);
     };
   }, [audioUrl, positionLoaded, savePosition]);
+
+  // Live speed changes from the command palette (⌘K → Increase/Decrease Speed).
+  useEffect(() => {
+    const onSpeedChange = (e: Event) => {
+      const next = (e as CustomEvent<number>).detail;
+      if (typeof next === "number" && next > 0 && next <= 4) {
+        setSpeed(next);
+        if (audioRef.current) audioRef.current.playbackRate = next;
+      }
+    };
+    window.addEventListener("speed-change", onSpeedChange);
+    return () => window.removeEventListener("speed-change", onSpeedChange);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -316,7 +365,10 @@ export default function AudioPlayer({
   const skip = (seconds: number) => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, duration));
+    // Read duration off the element — the `duration` state is stale inside
+    // long-lived closures (media-session and keyboard handlers).
+    const d = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+    audio.currentTime = Math.max(0, Math.min(audio.currentTime + seconds, d));
   };
 
   const handleSpeedChange = (newSpeed: number) => {
@@ -412,12 +464,31 @@ export default function AudioPlayer({
       </div>
 
       {/* Audio element created imperatively via useEffect - no JSX element needed */}
-      {audioLoading && (
+      {audioError ? (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-sm border border-burgundy/30 bg-burgundy/10 px-4 py-3">
+          <span className="text-sm font-serif text-burgundy-soft">
+            Couldn&apos;t load the audio. Check your connection and try again.
+          </span>
+          <button
+            onClick={() => {
+              setAudioError(false);
+              setAudioLoading(true);
+              if (audioRef.current && audioUrl) {
+                audioRef.current.src = audioUrl;
+                audioRef.current.load();
+              }
+            }}
+            className="label-mono shrink-0 rounded-sm border border-burgundy/40 px-3 py-1.5 text-burgundy-soft hover:bg-burgundy/15 transition-all"
+          >
+            Retry
+          </button>
+        </div>
+      ) : audioLoading ? (
         <div className="flex items-center justify-center py-2">
           <div className="w-4 h-4 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
           <span className="ml-2 label-mono text-paper/40">Loading audio...</span>
         </div>
-      )}
+      ) : null}
 
       {/* Progress bar */}
       <div className="mb-6">

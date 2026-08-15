@@ -47,30 +47,6 @@ def _split_text_into_chunks(text: str) -> list[str]:
     return chunks
 
 
-def synthesize_text(text: str, voice: str = "Joanna") -> bytes:
-    client = boto3.client("polly")
-    voice_info = VOICES.get(voice, VOICES["Joanna"])
-    engine = voice_info["engine"]
-
-    chunks = _split_text_into_chunks(text)
-    combined = AudioSegment.empty()
-
-    for chunk in chunks:
-        response = client.synthesize_speech(
-            Text=chunk,
-            OutputFormat="mp3",
-            VoiceId=voice_info["id"],
-            Engine=engine,
-        )
-        audio_stream = response["AudioStream"].read()
-        segment = AudioSegment.from_mp3(io.BytesIO(audio_stream))
-        combined += segment
-
-    output = io.BytesIO()
-    combined.export(output, format="mp3", bitrate="192k")
-    return output.getvalue()
-
-
 def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> bytes:
     client = boto3.client("polly")
     voice_info = VOICES.get(voice, VOICES["Joanna"])

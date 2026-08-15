@@ -28,8 +28,30 @@ def mp3_duration(path: str | Path) -> float:
             capture_output=True, text=True, check=True,
         )
         return float(out.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError):
+    except (subprocess.CalledProcessError, ValueError, OSError) as e:
+        # OSError covers ffprobe missing entirely (FileNotFoundError). A 0.0
+        # duration flattens every chapter start_time, so at least say why.
+        print(f"[audio] ffprobe duration failed for {path}: {e}")
         return 0.0
+
+
+def _stream_params(path: str | Path):
+    """(codec, sample_rate, channels) of the first audio stream, or None if the
+    probe fails — used to decide whether stream-copy concat is safe."""
+    try:
+        out = subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "a:0",
+                "-show_entries", "stream=codec_name,sample_rate,channels",
+                "-of", "csv=p=0",
+                str(path),
+            ],
+            capture_output=True, text=True, check=True,
+        )
+        vals = tuple(out.stdout.strip().split(","))
+        return vals if vals and vals[0] else None
+    except (subprocess.CalledProcessError, OSError):
+        return None
 
 
 def concat_mp3(paths: list[str | Path], out_path: str | Path) -> None:
@@ -68,16 +90,28 @@ def concat_mp3(paths: list[str | Path], out_path: str | Path) -> None:
                 lf.write(f"file '{escaped}'\n")
 
         base_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path]
-        try:
-            subprocess.run(
-                base_cmd + ["-c", "copy", str(out_path)],
-                capture_output=True, check=True,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.run(
-                base_cmd + ["-c:a", "libmp3lame", "-b:a", "128k", str(out_path)],
-                capture_output=True, check=True,
-            )
+
+        # Stream copy is only safe when every input shares codec/sample-rate/
+        # channels. Mixed inputs (e.g. some chunks fell back from edge-tts to
+        # gTTS mid-book) usually concat "successfully" with -c copy but produce
+        # broken timestamps/duration — so probe first and force the re-encode
+        # path on any mismatch instead of relying on ffmpeg to fail.
+        params = {_stream_params(p) for p in paths}
+        homogeneous = len(params) == 1 and None not in params
+
+        if homogeneous:
+            try:
+                subprocess.run(
+                    base_cmd + ["-c", "copy", str(out_path)],
+                    capture_output=True, check=True,
+                )
+                return
+            except subprocess.CalledProcessError as e:
+                print(f"[audio] ffmpeg stream-copy concat failed; falling back to re-encode: {e}")
+        subprocess.run(
+            base_cmd + ["-c:a", "libmp3lame", "-b:a", "128k", str(out_path)],
+            capture_output=True, check=True,
+        )
     finally:
         try:
             os.unlink(list_path)

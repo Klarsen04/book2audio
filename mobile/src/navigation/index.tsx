@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
+import { Text, BackHandler } from 'react-native';
 import LibraryScreen from '../screens/LibraryScreen';
 import PlayerScreen from '../screens/PlayerScreen';
 import UploadScreen from '../screens/UploadScreen';
@@ -34,6 +34,18 @@ const navTheme = {
 export default function Navigation() {
   // No auth gate — anyone can use the app; a session is minted on first upload.
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+
+  // The player is rendered outside the NavigationContainer (conditional swap),
+  // so Android's hardware back would otherwise exit the app instead of
+  // returning to the Library.
+  useEffect(() => {
+    if (!selectedDocument) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelectedDocument(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [selectedDocument]);
 
   if (selectedDocument) {
     return (

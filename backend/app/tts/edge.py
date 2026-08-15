@@ -132,11 +132,20 @@ def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> by
     try:
         for i, chunk in enumerate(chunks):
             audio_bytes = _synthesize_chunk(chunk, voice_id)
-            if audio_bytes:
-                cp = os.path.join(tmpdir, f"chunk_{i:05d}.mp3")
-                with open(cp, "wb") as f:
-                    f.write(audio_bytes)
-                chunk_files.append(cp)
+            if not audio_bytes:
+                # All retries across both engines failed for this chunk. Raising
+                # (instead of skipping it) keeps the output honest — silently
+                # dropping a chunk shipped audiobooks with paragraphs missing
+                # mid-chapter and no error anywhere.
+                raise RuntimeError(
+                    f"The speech service didn't return audio for part of this chapter "
+                    f"(section {i + 1} of {len(chunks)}) — it may be rate-limited or "
+                    f"temporarily unavailable. Please try again in a few minutes."
+                )
+            cp = os.path.join(tmpdir, f"chunk_{i:05d}.mp3")
+            with open(cp, "wb") as f:
+                f.write(audio_bytes)
+            chunk_files.append(cp)
             if on_progress:
                 on_progress(i + 1, len(chunks))
 

@@ -23,8 +23,15 @@ export default function FlashcardsView({ docId }: Props) {
   const storageKey = `flashcards_${docId}`;
 
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) setCards(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setCards(parsed);
+      }
+    } catch {
+      // corrupted storage — start fresh
+    }
   }, [storageKey]);
 
   const save = (updated: Flashcard[]) => {

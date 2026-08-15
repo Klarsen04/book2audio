@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -8,7 +8,7 @@ import AudioPlayer from "@/components/AudioPlayer";
 import ReaderView from "@/components/ReaderView";
 import Bookmarks from "@/components/Bookmarks";
 import StudyTimer from "@/components/StudyTimer";
-import HighlightsPanel from "@/components/Highlights";
+import HighlightsPanel, { addHighlightForDoc } from "@/components/Highlights";
 import NotesPanel from "@/components/NotesPanel";
 import FlashcardsView from "@/components/Flashcards";
 import { setNowPlaying } from "@/components/NowPlaying";
@@ -62,42 +62,73 @@ export default function PlayerPage() {
     if (stored === "true") setAutoplayNext(true);
   }, []);
 
+  // Feed the library's "Recently played" sort.
   useEffect(() => {
-    api
-      .get("/api/library")
-      .then((res) => {
-        const docs = res.data.documents || res.data || [];
-        setLibraryDocs(docs);
-      })
-      .catch(() => {
-        // Silently fail - autoplay just won't work
-      });
+    try {
+      const parsed = JSON.parse(localStorage.getItem("last_played") || "{}");
+      const map = parsed && typeof parsed === "object" ? parsed : {};
+      map[docId] = Date.now();
+      localStorage.setItem("last_played", JSON.stringify(map));
+    } catch {}
+  }, [docId]);
+
+  const libraryDocsRef = useRef<LibraryDoc[]>([]);
+  useEffect(() => {
+    libraryDocsRef.current = libraryDocs;
+  }, [libraryDocs]);
+
+  // Re-fetched on focus and before autoplay decisions so a sibling part that
+  // finished converting while we listened becomes navigable without a reload.
+  const refreshLibrary = useCallback(async (): Promise<LibraryDoc[]> => {
+    try {
+      const res = await api.get("/api/library");
+      const docs = res.data.documents || res.data || [];
+      setLibraryDocs(docs);
+      return docs;
+    } catch {
+      return libraryDocsRef.current;
+    }
   }, []);
 
-  const getNextCompletedDoc = useCallback((): LibraryDoc | null => {
-    if (libraryDocs.length === 0) return null;
-    const current = libraryDocs.find((doc) => doc.id === docId);
+  useEffect(() => {
+    refreshLibrary();
+    const onFocus = () => refreshLibrary();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refreshLibrary]);
 
-    // If this is part of a split book, the next item is the next part in
-    // sequence — never an earlier part. Only offer it once it's ready.
-    if (current?.part_group && current.part_index != null) {
-      const nextPart = libraryDocs.find(
-        (d) => d.part_group === current.part_group && d.part_index === current.part_index! + 1
-      );
-      if (nextPart) return nextPart.status === "completed" ? nextPart : null;
-      return null; // last part of the book
-    }
+  const findNextCompletedDoc = useCallback(
+    (docs: LibraryDoc[]): LibraryDoc | null => {
+      if (docs.length === 0) return null;
+      const current = docs.find((doc) => doc.id === docId);
 
-    // Otherwise, the next completed doc in the list.
-    const currentIndex = libraryDocs.findIndex((doc) => doc.id === docId);
-    if (currentIndex === -1) return null;
-    for (let i = currentIndex + 1; i < libraryDocs.length; i++) {
-      if (libraryDocs[i].status === "completed") {
-        return libraryDocs[i];
+      // If this is part of a split book, the next item is the next part in
+      // sequence — never an earlier part. Only offer it once it's ready.
+      if (current?.part_group && current.part_index != null) {
+        const nextPart = docs.find(
+          (d) => d.part_group === current.part_group && d.part_index === current.part_index! + 1
+        );
+        if (nextPart) return nextPart.status === "completed" ? nextPart : null;
+        return null; // last part of the book
       }
-    }
-    return null;
-  }, [libraryDocs, docId]);
+
+      // Otherwise, the next completed doc in the list.
+      const currentIndex = docs.findIndex((doc) => doc.id === docId);
+      if (currentIndex === -1) return null;
+      for (let i = currentIndex + 1; i < docs.length; i++) {
+        if (docs[i].status === "completed") {
+          return docs[i];
+        }
+      }
+      return null;
+    },
+    [docId]
+  );
+
+  const getNextCompletedDoc = useCallback(
+    (): LibraryDoc | null => findNextCompletedDoc(libraryDocs),
+    [findNextCompletedDoc, libraryDocs]
+  );
 
   const toggleAutoplay = () => {
     setAutoplayNext((prev) => {
@@ -107,9 +138,11 @@ export default function PlayerPage() {
     });
   };
 
-  const handleAudioEnded = useCallback(() => {
+  const handleAudioEnded = useCallback(async () => {
     if (autoplayNext) {
-      const nextDoc = getNextCompletedDoc();
+      // Refresh first — a next part may have finished while we listened.
+      const docs = await refreshLibrary();
+      const nextDoc = findNextCompletedDoc(docs);
       if (nextDoc) {
         showToast(`Playing next: ${nextDoc.title}`);
         router.push(`/player/${nextDoc.id}`);
@@ -117,7 +150,7 @@ export default function PlayerPage() {
         showToast("End of queue");
       }
     }
-  }, [autoplayNext, getNextCompletedDoc, router]);
+  }, [autoplayNext, refreshLibrary, findNextCompletedDoc, router]);
 
   useEffect(() => {
     api
@@ -132,6 +165,27 @@ export default function PlayerPage() {
       .catch(() => setError("Document not found"))
       .finally(() => setLoading(false));
   }, [docId, searchParams]);
+
+  // If the doc isn't converted yet, watch its status so the page comes alive
+  // the moment conversion finishes (instead of a dead "not converted" wall).
+  const [liveStatus, setLiveStatus] = useState<{ status: string; progress: number } | null>(null);
+  useEffect(() => {
+    if (!document || document.status === "completed") return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/api/status/${docId}`);
+        setLiveStatus({ status: res.data.status, progress: res.data.progress ?? 0 });
+        if (res.data.status === "completed") {
+          clearInterval(interval);
+          const doc = await api.get(`/api/library/${docId}`);
+          setDocument(doc.data.document);
+        }
+      } catch {
+        // transient — keep polling
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [document, docId]);
 
   const handleChapterSelect = (index: number) => {
     if (!document) return;
@@ -244,13 +298,38 @@ export default function PlayerPage() {
   if (!document) return null;
 
   if (document.status !== "completed") {
+    const status = liveStatus?.status ?? document.status;
+    const inProgress = status === "converting" || status === "queued";
     return (
       <div className="text-center py-20">
-        <div className="text-5xl mb-4">⏳</div>
-        <p className="text-paper/60 mb-4">This document hasn&apos;t been converted yet.</p>
-        <Link href="/library" className="text-gold hover:text-gold-soft text-sm font-medium transition-colors">
-          ← Back to library
-        </Link>
+        <div className="text-5xl mb-4">{status === "error" ? "😕" : "⏳"}</div>
+        {inProgress ? (
+          <>
+            <p className="text-paper/60 mb-2">
+              {status === "queued"
+                ? "This document is queued for conversion — it starts automatically."
+                : `Converting… ${liveStatus?.progress ?? 0}%`}
+            </p>
+            <p className="label-mono text-paper/40 mb-6">The player opens by itself when it&apos;s ready.</p>
+          </>
+        ) : status === "error" ? (
+          <p className="text-paper/60 mb-6">The conversion failed — you can retry it.</p>
+        ) : (
+          <p className="text-paper/60 mb-6">This document hasn&apos;t been converted yet.</p>
+        )}
+        <div className="flex items-center justify-center gap-4">
+          {!inProgress && (
+            <Link
+              href={`/convert?doc=${docId}`}
+              className="label-mono px-6 py-2.5 rounded-full bg-gold text-ink hover:scale-[1.02] transition-all"
+            >
+              {status === "error" ? "Retry conversion" : "Convert now"}
+            </Link>
+          )}
+          <Link href="/library" className="text-gold hover:text-gold-soft text-sm font-medium transition-colors">
+            ← Back to library
+          </Link>
+        </div>
       </div>
     );
   }
@@ -481,6 +560,10 @@ export default function PlayerPage() {
             currentChapterIndex={currentChapterIndex}
             onChapterSelect={handleChapterSelect}
             onPlayFromText={handlePlayFromText}
+            onHighlight={(chapterIndex, text) => {
+              addHighlightForDoc(docId, text, chapterIndex);
+              showToast("Highlight saved");
+            }}
             isPlaying={isPlaying}
             chapterProgress={(() => {
               if (!document.audio_duration) return 0;

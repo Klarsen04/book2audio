@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { gsap, useGSAP, prefersReducedMotion } from "@/lib/gsap";
 import WaveCanvas, { WaveHandle } from "@/components/motion/WaveCanvas";
@@ -15,6 +15,33 @@ export default function ArtifactScene() {
   const root = useRef<HTMLDivElement>(null);
   const wave = useRef<WaveHandle>(null);
   const [mode, setMode] = useState<"page" | "wave">("wave");
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+
+  useEffect(() => {
+    const audio = new Audio("/samples/demo-gatsby.mp3");
+    audio.preload = "none";
+    previewRef.current = audio;
+    const onPlay = () => setPreviewPlaying(true);
+    const onStop = () => setPreviewPlaying(false);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onStop);
+    audio.addEventListener("ended", onStop);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onStop);
+      audio.removeEventListener("ended", onStop);
+      previewRef.current = null;
+    };
+  }, []);
+
+  const togglePreview = () => {
+    const audio = previewRef.current;
+    if (!audio) return;
+    if (previewPlaying) audio.pause();
+    else audio.play().catch(() => {});
+  };
 
   useGSAP(
     () => {
@@ -74,12 +101,19 @@ export default function ArtifactScene() {
             </div>
             <div className="flex items-center gap-4 px-8 pb-8 pt-2">
               <button
-                aria-label="Play preview"
+                aria-label={previewPlaying ? "Pause preview" : "Play preview"}
+                onClick={togglePreview}
                 className="flex h-12 w-12 items-center justify-center rounded-full bg-gold text-ink transition-transform hover:scale-105 active:scale-95"
               >
-                <svg className="ml-0.5 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                {previewPlaying ? (
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                  </svg>
+                ) : (
+                  <svg className="ml-0.5 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
               </button>
               <div className="flex-1">
                 <div className="h-1 w-full overflow-hidden rounded-full bg-paper/12">

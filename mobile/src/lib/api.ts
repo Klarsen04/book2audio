@@ -12,6 +12,15 @@ import * as SecureStore from 'expo-secure-store';
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || 'https://book2audio-eyw2.onrender.com';
 
+if (!process.env.EXPO_PUBLIC_API_URL) {
+  console.warn(
+    `[book2audio] EXPO_PUBLIC_API_URL is not set — falling back to the production backend at ${API_BASE_URL}. ` +
+      'Set EXPO_PUBLIC_API_URL to point at a local backend.'
+  );
+} else {
+  console.log(`[book2audio] API base URL: ${API_BASE_URL}`);
+}
+
 const TOKEN_KEY = 'sessionToken';
 const RESTORE_KEY = 'restoreKey';
 
@@ -30,26 +39,46 @@ api.interceptors.request.use(async (config) => {
 });
 
 // Capture a freshly-minted session (token + restore key) from response headers.
-api.interceptors.response.use(async (response) => {
-  const token = response.headers?.['x-session-token'];
-  const key = response.headers?.['x-restore-key'];
+// The backend mints the session even when the request itself fails (e.g. a 413
+// on the very first upload), so capture from error responses too.
+const captureSessionHeaders = async (headers: any) => {
+  const token = headers?.['x-session-token'];
+  const key = headers?.['x-restore-key'];
   if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
   if (key) await SecureStore.setItemAsync(RESTORE_KEY, key);
-  return response;
-});
+};
+
+api.interceptors.response.use(
+  async (response) => {
+    await captureSessionHeaders(response.headers);
+    return response;
+  },
+  async (error) => {
+    await captureSessionHeaders(error?.response?.headers);
+    return Promise.reject(error);
+  }
+);
 
 export const getSessionToken = () => SecureStore.getItemAsync(TOKEN_KEY);
 export const getRestoreKey = () => SecureStore.getItemAsync(RESTORE_KEY);
 
 export const restoreSession = async (key: string) => {
-  const res = await api.post('/api/session/restore', { key: key.trim() });
+  // Backend normalizes case + strips spaces; store the same canonical form.
+  const normalized = key.replace(/\s+/g, '').toUpperCase();
+  const res = await api.post('/api/session/restore', { key: normalized });
   const token = res.data?.session_token;
   if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-  await SecureStore.setItemAsync(RESTORE_KEY, key.trim().toUpperCase());
+  await SecureStore.setItemAsync(RESTORE_KEY, normalized);
   return res.data;
 };
 
 export const signOutSession = async () => {
+  // Best-effort server-side signout before dropping the local credentials.
+  try {
+    await api.post('/api/session/signout', undefined, { timeout: 5000 });
+  } catch {
+    // Signout is stateless server-side; clearing local storage is what matters.
+  }
   await SecureStore.deleteItemAsync(TOKEN_KEY);
   await SecureStore.deleteItemAsync(RESTORE_KEY);
 };

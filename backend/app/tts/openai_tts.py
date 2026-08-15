@@ -99,11 +99,17 @@ def synthesize_chapter(text: str, voice: str = "Joanna", on_progress=None) -> by
     try:
         for i, chunk in enumerate(chunks):
             data = _synthesize_chunk(voice_id, chunk)
-            if data:
-                cp = os.path.join(tmpdir, f"chunk_{i:05d}.mp3")
-                with open(cp, "wb") as f:
-                    f.write(data)
-                chunk_files.append(cp)
+            if not data:
+                # Fail loudly rather than shipping audio with this chunk missing.
+                raise RuntimeError(
+                    f"OpenAI TTS returned no audio for part of this chapter "
+                    f"(section {i + 1} of {len(chunks)}) — check OPENAI_API_KEY / "
+                    f"billing, or try again."
+                )
+            cp = os.path.join(tmpdir, f"chunk_{i:05d}.mp3")
+            with open(cp, "wb") as f:
+                f.write(data)
+            chunk_files.append(cp)
             if on_progress:
                 on_progress(i + 1, len(chunks))
 

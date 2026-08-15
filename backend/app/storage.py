@@ -140,12 +140,6 @@ def presigned_url(doc_id: str, expires_in: int = 86400, filename: str | None = N
         return None
 
 
-def read_bytes(doc_id: str) -> bytes:
-    if _USE_S3:
-        return _s3().get_object(Bucket=_BUCKET, Key=_key(doc_id))["Body"].read()
-    return local_path(doc_id).read_bytes()
-
-
 def delete_audio(doc_id: str) -> None:
     if _USE_S3:
         try:

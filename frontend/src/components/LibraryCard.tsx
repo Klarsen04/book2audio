@@ -62,13 +62,22 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
   const [listenProgress, setListenProgress] = useState<number | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
 
+  const readFavorites = (): string[] => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("favorites") || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
   useEffect(() => {
-    const favs = JSON.parse(localStorage.getItem("favorites") || "[]");
-    setIsFavorite(favs.includes(doc.id));
+    setIsFavorite(readFavorites().includes(doc.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id]);
 
   const toggleFavorite = () => {
-    const favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+    const favs = readFavorites();
     const updated = isFavorite ? favs.filter((id: string) => id !== doc.id) : [...favs, doc.id];
     localStorage.setItem("favorites", JSON.stringify(updated));
     setIsFavorite(!isFavorite);
@@ -162,9 +171,13 @@ export default function LibraryCard({ document: doc, onDelete }: Props) {
             {doc.status === "converting" ? "Converting… ›" : "Queued ›"}
           </Link>
         ) : (
-          <span className="label-mono flex-1 text-center py-2 text-paper/40">
-            Failed
-          </span>
+          <Link
+            href={`/convert?doc=${doc.id}`}
+            className="label-mono flex-1 text-center py-2 rounded-sm bg-burgundy/10 border border-burgundy/30 text-burgundy-soft hover:bg-burgundy/20 transition-all"
+            title="Conversion failed — try again"
+          >
+            Failed — Retry
+          </Link>
         )}
         {doc.status === "completed" && (
           <a

@@ -1,6 +1,8 @@
 import os
 
-TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "polly").lower()
+# Default to edge: it needs no credentials (and falls back to gTTS), whereas
+# polly requires AWS credentials and fails every conversion without them.
+TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "edge").lower()
 
 
 def get_synthesize_fn():

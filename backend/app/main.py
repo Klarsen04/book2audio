@@ -1,3 +1,5 @@
+import asyncio
+import time
 import uuid
 import json
 import os
@@ -164,6 +166,91 @@ def _session_worker(user_id: str) -> None:
                 print(f"[conversion-worker] error: {e}")
 
 
+def _content_from_db(doc_id: str) -> BookContent | None:
+    """
+    Rebuild a document's BookContent from its persisted chapters_json — the
+    chapter text is stored at upload time, so the in-memory progress cache is
+    just an optimization. This is what lets Convert keep working after a
+    restart/redeploy (and lets a completed doc be re-converted) instead of
+    dead-ending on "content expired".
+    """
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT title, chapters_json FROM documents WHERE id = ?", (doc_id,)
+            ).fetchone()
+        if not row:
+            return None
+        chapters = [
+            Chapter(title=c.get("title") or "Chapter", text=c.get("text") or "")
+            for c in json.loads(row["chapters_json"])
+        ]
+        chapters = [c for c in chapters if c.text.strip()]
+        if not chapters:
+            return None
+        return BookContent(
+            title=row["title"],
+            chapters=chapters,
+            word_count=sum(len(c.text.split()) for c in chapters),
+        )
+    except Exception as e:
+        print(f"[convert] could not rebuild content for {doc_id}: {e}")
+        return None
+
+
+def _split_oversized_chapters(chapters, max_words: int):
+    """
+    Split any single chapter over max_words into sequential sub-chapters on
+    paragraph (then sentence) boundaries. Pasted text / URL articles arrive as
+    ONE "Full Text" chapter, which previously bypassed the MAX_CONVERT_WORDS
+    part-splitting entirely (the split requires >1 chapter) and produced one
+    unbounded conversion job.
+    """
+    import re
+
+    out = []
+    for ch in chapters:
+        if len(ch.text.split()) <= max_words:
+            out.append(ch)
+            continue
+        blocks: list[str] = []
+        for para in ch.text.split("\n\n"):
+            if len(para.split()) > max_words:
+                blocks.extend(re.split(r"(?<=[.!?])\s+", para))
+            else:
+                blocks.append(para)
+        # Hard fallback: text with no punctuation/paragraphs at all would stay
+        # one giant block — chunk it by raw word count so the cap always holds.
+        bounded: list[str] = []
+        for b in blocks:
+            bw = b.split()
+            if len(bw) > max_words:
+                for j in range(0, len(bw), max_words):
+                    bounded.append(" ".join(bw[j:j + max_words]))
+            else:
+                bounded.append(b)
+        blocks = bounded
+        pieces: list[str] = []
+        cur: list[str] = []
+        cur_words = 0
+        for b in blocks:
+            bw = len(b.split())
+            if cur and cur_words + bw > max_words:
+                pieces.append("\n\n".join(cur))
+                cur, cur_words = [b], bw
+            else:
+                cur.append(b)
+                cur_words += bw
+        if cur:
+            pieces.append("\n\n".join(cur))
+        if len(pieces) <= 1:
+            out.append(ch)
+            continue
+        for i, piece in enumerate(pieces):
+            out.append(Chapter(title=f"{ch.title} ({i + 1}/{len(pieces)})", text=piece))
+    return out
+
+
 def _split_chapters_into_parts(chapters, max_words: int):
     """
     Pack chapters into parts, each part's total word count staying under
@@ -194,13 +281,28 @@ from app.feed_router import router as feed_router
 app.include_router(feed_router)
 
 
+def _prune_progress_entries(max_age_hours: int = 6) -> None:
+    """Drop finished/errored in-memory progress entries after a grace period —
+    errored ones retain the full parsed book text, so an unpruned dict grows
+    without bound. Retry still works afterwards: convert rebuilds content from
+    the DB's chapters_json."""
+    now = time.time()
+    for did in list(conversion_progress.keys()):
+        p = conversion_progress.get(did) or {}
+        if p.get("status") in ("completed", "error") and (
+            now - p.get("ts", now) > max_age_hours * 3600
+        ):
+            conversion_progress.pop(did, None)
+
+
 def _cleanup_loop():
-    """Periodically reclaim storage from abandoned sessions (idle > TTL)."""
-    import time
+    """Periodically reclaim storage from abandoned sessions (idle > TTL) and
+    prune stale in-memory progress entries."""
     from app.session import cleanup_abandoned_sessions
 
     while True:
         try:
+            _prune_progress_entries()
             removed = cleanup_abandoned_sessions()
             if removed:
                 print(f"[cleanup] removed {removed} abandoned session(s)")
@@ -228,13 +330,16 @@ def startup():
     try:
         with get_db() as conn:
             conn.execute(
-                "UPDATE documents SET status = 'error' WHERE status IN ('converting', 'queued')"
+                "UPDATE documents SET status = 'error', error = ? "
+                "WHERE status IN ('converting', 'queued')",
+                ("Interrupted by a server restart — press Convert to retry.",),
             )
     except Exception as e:
         print(f"[startup] could not reset interrupted conversions: {e}")
 
-    if limits.SESSION_TTL_DAYS > 0:
-        Thread(target=_cleanup_loop, daemon=True).start()
+    # Always run the cleanup thread: it also prunes in-memory progress entries.
+    # Session reaping inside it is a no-op when SESSION_TTL_DAYS <= 0.
+    Thread(target=_cleanup_loop, daemon=True).start()
 
     # Conversion workers are spawned per-session on demand (see _enqueue_conversion),
     # so there's no global worker to start here.
@@ -265,13 +370,16 @@ async def get_voices():
 
 
 @app.get("/api/voices/preview/{voice_id}")
-async def preview_voice(voice_id: str, text: str | None = None):
+async def preview_voice(voice_id: str, request: Request, text: str | None = None):
     import io
-    import edge_tts
-    from app.tts.edge import VOICES
 
-    voice_info = VOICES.get(voice_id, VOICES.get("Joanna"))
-    if not voice_info:
+    # Previews synthesize real audio; cap them like uploads (they were the one
+    # unlimited synthesis endpoint).
+    check_rate_limit(request, "preview", limits.RATE_LIMIT_UPLOADS_PER_HOUR)
+
+    # Validate against the ACTIVE provider's voice list (real 404 for unknown ids).
+    valid_voices = {v["id"] for v in get_voices_fn()()}
+    if voice_id not in valid_voices:
         raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
 
     # Read the caller-supplied excerpt when provided (capped to keep previews
@@ -280,19 +388,20 @@ async def preview_voice(voice_id: str, text: str | None = None):
         sample_text = text.strip()[:400]
     else:
         sample_text = "Here's a quick preview of how I sound reading your documents."
+
+    # Synthesize through the SAME provider + fallback path as conversions
+    # (TTS_PROVIDER / FORCE_EDGE_TTS), so the preview sounds like the real
+    # output and inherits the gTTS fallback instead of 500ing when edge-tts is
+    # unreachable. synthesize_chapter blocks (and runs its own event loop for
+    # edge), so run it in a thread.
     try:
-        communicate = edge_tts.Communicate(sample_text, voice_info["id"])
-        audio_data = b""
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_data += chunk["data"]
-        if not audio_data:
-            raise HTTPException(status_code=500, detail="No audio generated")
-        return StreamingResponse(io.BytesIO(audio_data), media_type="audio/mpeg")
-    except HTTPException:
-        raise
+        synthesize = get_synthesize_fn()
+        audio_data = await asyncio.to_thread(synthesize, sample_text, voice_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
+    if not audio_data:
+        raise HTTPException(status_code=500, detail="No audio generated")
+    return StreamingResponse(io.BytesIO(audio_data), media_type="audio/mpeg")
 
 
 @app.post("/api/upload")
@@ -351,6 +460,7 @@ async def upload_file(request: Request, file: UploadFile, user: dict = Depends(g
         "progress": 0,
         "current_chapter": 0,
         "total_chapters": len(content.chapters),
+        "ts": time.time(),
     }
 
     return {
@@ -463,18 +573,40 @@ async def _get_public_url(
         headers = dict(client.headers)
         headers["Host"] = host_header
 
-        resp = await client.get(
+        # Stream every hop: redirect bodies are discarded unread, and the final
+        # body is read incrementally with a hard size cap — previously each hop
+        # was buffered fully in memory before any size check ran.
+        req = client.build_request(
+            "GET",
             request_url,
             headers=headers,
             extensions={"sni_hostname": parsed.hostname} if parsed.scheme == "https" else None,
         )
-        if resp.is_redirect:
-            location = resp.headers.get("location")
-            if not location:
+        resp = await client.send(req, stream=True)
+        try:
+            if resp.is_redirect:
+                location = resp.headers.get("location")
+                if location:
+                    current = urljoin(current, location)
+                    continue
+                await resp.aread()
                 return resp
-            current = urljoin(current, location)
-            continue
-        return resp
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > limits.MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail={
+                            "code": "file_too_large",
+                            "message": f"That page/file is too large. The limit is {limits.MAX_UPLOAD_MB} MB.",
+                        },
+                    )
+            # Cache the streamed body so callers can keep using resp.content.
+            resp._content = bytes(body)
+            return resp
+        finally:
+            await resp.aclose()
     raise HTTPException(status_code=400, detail="That URL has too many redirects.")
 
 
@@ -643,6 +775,7 @@ async def upload_url(request: Request, body: UploadUrlRequest, user: dict = Depe
         "progress": 0,
         "current_chapter": 0,
         "total_chapters": len(content.chapters),
+        "ts": time.time(),
     }
 
     return {
@@ -701,6 +834,7 @@ async def upload_text(request: Request, body: UploadTextRequest, user: dict = De
         "progress": 0,
         "current_chapter": 0,
         "total_chapters": len(content.chapters),
+        "ts": time.time(),
     }
 
     return {
@@ -750,96 +884,105 @@ async def start_conversion(
             },
         )
 
-    if doc_id not in conversion_progress:
-        raise HTTPException(status_code=400, detail="Document content expired. Please re-upload.")
-
-    if conversion_progress[doc_id]["status"] in ("converting", "queued"):
+    progress = conversion_progress.get(doc_id)
+    if (row["status"] in ("converting", "queued")) or (
+        progress and progress.get("status") in ("converting", "queued")
+    ):
         raise HTTPException(status_code=409, detail="Conversion already in progress or queued")
 
-    from app.parsers.extractor import Chapter, BookContent
+    # Base content for this attempt: the pristine in-memory copy when we have
+    # one, else rebuilt from the DB (chapters_json keeps the full text). The
+    # rebuild is what lets Convert survive restarts, redeploys, and re-converts
+    # of completed docs (the memory entry loses its "content" on success).
+    base = None
+    if progress:
+        base = progress.get("original_content") or progress.get("content")
+    if base is None:
+        base = _content_from_db(doc_id)
+    if base is None:
+        raise HTTPException(status_code=400, detail="Document content expired. Please re-upload.")
+    if progress is None:
+        progress = {
+            "status": "uploaded",
+            "progress": 0,
+            "current_chapter": 0,
+            "total_chapters": len(base.chapters),
+            "ts": time.time(),
+        }
+        conversion_progress[doc_id] = progress
+    progress["original_content"] = base
 
-    # Apply summarization if needed (this REPLACES the read content).
-    if audio_type in ("long_summary", "short_summary"):
-        from app.summarizer import summarize_long, summarize_short
-        content = conversion_progress[doc_id]["content"]
-        summarize_fn = summarize_long if audio_type == "long_summary" else summarize_short
-        summarized_chapters = []
-        for ch in content.chapters:
-            summary_text = summarize_fn(ch.text)
-            summarized_chapters.append(Chapter(title=ch.title, text=summary_text))
-        # Replace content with summarized version
-        summarized_content = BookContent(
-            title=content.title,
-            chapters=summarized_chapters,
-            word_count=sum(len(ch.text.split()) for ch in summarized_chapters),
-        )
-        conversion_progress[doc_id]["content"] = summarized_content
-        conversion_progress[doc_id]["total_chapters"] = len(summarized_chapters)
+    def _build_working_content() -> BookContent:
+        """Derive this attempt's content from the ORIGINAL (a retry after an
+        error must not summarize the summary or stack a second intro). Runs in
+        a worker thread: the LLM summarizers block on HTTP for up to a minute
+        per chapter, which would freeze every endpoint if run on the loop."""
+        content = base
 
-        # Persist the reduced word counts AND text so the reader view reflects
-        # the summary (must keep `text`, or the reader shows "text not available").
-        summarized_meta = [
-            {"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text}
-            for ch in summarized_chapters
-        ]
-        with get_db() as conn:
-            conn.execute(
-                "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
-                (json.dumps(summarized_meta), summarized_content.word_count, doc_id),
-            )
+        if audio_type in ("long_summary", "short_summary"):
+            from app.summarizer import summarize_long, summarize_short
 
-    # Optional spoken "preread": prepend a short summary chapter read at the very
-    # start, WITHOUT shortening the main content. Built from whatever will be read
-    # (full text, or the summary above), so it previews the actual audio.
-    if intro:
-        from app.summarizer import summarize_intro
-        content = conversion_progress[doc_id]["content"]
-        whole_text = "\n\n".join(ch.text for ch in content.chapters)
-        overview = summarize_intro(whole_text)
-        if overview.strip():
-            intro_text = (
-                f"Summary. Here's a quick overview of {content.title}. "
-                f"{overview} Now, the full text begins."
-            )
-            intro_chapter = Chapter(title="Summary", text=intro_text)
-            new_content = BookContent(
+            summarize_fn = summarize_long if audio_type == "long_summary" else summarize_short
+            summarized = [
+                Chapter(title=ch.title, text=summarize_fn(ch.text)) for ch in content.chapters
+            ]
+            content = BookContent(
                 title=content.title,
-                chapters=[intro_chapter, *content.chapters],
-                word_count=content.word_count + len(intro_text.split()),
+                chapters=summarized,
+                word_count=sum(len(ch.text.split()) for ch in summarized),
             )
-            conversion_progress[doc_id]["content"] = new_content
-            conversion_progress[doc_id]["total_chapters"] = len(new_content.chapters)
 
-            # Prepend the intro to the stored chapter list so it shows as a
-            # navigable "Summary" chapter at 0:00 in the player.
-            with get_db() as conn:
-                cj = conn.execute(
-                    "SELECT chapters_json, total_word_count FROM documents WHERE id = ?",
-                    (doc_id,),
-                ).fetchone()
-                chapters_meta = json.loads(cj[0])
-                chapters_meta.insert(
-                    0,
-                    {
-                        "title": "Summary",
-                        "word_count": len(intro_text.split()),
-                        "text": intro_text,
-                    },
+        # Optional spoken "preread": prepend a short summary chapter, WITHOUT
+        # shortening the main content. Skipped when the base already starts
+        # with a Summary chapter (a rebuilt doc from a previous intro run).
+        if intro and not (content.chapters and content.chapters[0].title == "Summary"):
+            from app.summarizer import summarize_intro
+
+            overview = summarize_intro("\n\n".join(ch.text for ch in content.chapters))
+            if overview.strip():
+                intro_text = (
+                    f"Summary. Here's a quick overview of {content.title}. "
+                    f"{overview} Now, the full text begins."
                 )
-                conn.execute(
-                    "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
-                    (json.dumps(chapters_meta), (cj[1] or 0) + len(intro_text.split()), doc_id),
+                content = BookContent(
+                    title=content.title,
+                    chapters=[Chapter(title="Summary", text=intro_text), *content.chapters],
+                    word_count=content.word_count + len(intro_text.split()),
                 )
+
+        # A single huge chapter (pasted text / URL article) must still be
+        # splittable into parts, or MAX_CONVERT_WORDS is silently bypassed.
+        split_chapters = _split_oversized_chapters(content.chapters, limits.MAX_CONVERT_WORDS)
+        if len(split_chapters) != len(content.chapters):
+            content = BookContent(
+                title=content.title, chapters=split_chapters, word_count=content.word_count
+            )
+        return content
+
+    working = await asyncio.to_thread(_build_working_content)
+    progress["content"] = working
+    progress["total_chapters"] = len(working.chapters)
+
+    # Persist exactly what will be read (title/word_count/text per chapter) so
+    # the reader and library reflect this conversion. A full rewrite — not an
+    # incremental insert — so retries are idempotent by construction.
+    working_meta = [
+        {"title": ch.title, "word_count": len(ch.text.split()), "text": ch.text}
+        for ch in working.chapters
+    ]
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE documents SET chapters_json = ?, total_word_count = ? WHERE id = ?",
+            (json.dumps(working_meta), working.word_count, doc_id),
+        )
 
     # If the doc is larger than the per-conversion cap, split it into sibling
     # documents along chapter boundaries and queue the tail — each part is a
     # separate, playable audiobook. Keeps every job small enough to reliably
     # finish on the free tier (and if Part 2 fails, Parts 1/3 aren't lost).
-    content = conversion_progress[doc_id]["content"]
+    content = working
     part_ids: list[str] = [doc_id]
     if content.word_count > limits.MAX_CONVERT_WORDS and len(content.chapters) > 1:
-        from app.parsers.extractor import BookContent
-
         parts = _split_chapters_into_parts(content.chapters, limits.MAX_CONVERT_WORDS)
         total_parts = len(parts)
         base_title = content.title
@@ -867,6 +1010,9 @@ async def start_conversion(
                         (part_title, json.dumps(part_meta), part_words, group_id, 1, doc_id),
                     )
                 conversion_progress[doc_id]["content"] = part_content
+                # The doc now IS part 1 — a later re-convert must derive from
+                # the part, not the full book (which would re-split it).
+                conversion_progress[doc_id]["original_content"] = part_content
                 conversion_progress[doc_id]["total_chapters"] = len(part_chapters)
             else:
                 # Create a sibling document and stash its content in memory so
@@ -886,10 +1032,12 @@ async def start_conversion(
                     )
                 conversion_progress[part_id] = {
                     "content": part_content,
+                    "original_content": part_content,
                     "status": "queued",
                     "progress": 0,
                     "current_chapter": 0,
                     "total_chapters": len(part_chapters),
+                    "ts": time.time(),
                 }
                 part_ids.append(part_id)
 
@@ -902,7 +1050,7 @@ async def start_conversion(
         conversion_progress[pid]["progress"] = 0
         with get_db() as conn:
             conn.execute(
-                "UPDATE documents SET status = 'queued', voice = ? WHERE id = ?",
+                "UPDATE documents SET status = 'queued', voice = ?, error = NULL WHERE id = ?",
                 (voice, pid),
             )
         _enqueue_conversion(user["id"], pid, voice)
@@ -1005,26 +1153,62 @@ def _run_conversion(doc_id: str, voice: str):
         # Inject exact start times into the stored chapters_json
         with get_db() as conn:
             row = conn.execute("SELECT chapters_json FROM documents WHERE id = ?", (doc_id,)).fetchone()
-            chapters = json.loads(row[0])
-            for i, ch in enumerate(chapters):
-                if i < len(chapter_start_times):
-                    ch["start_time"] = chapter_start_times[i]
-            conn.execute(
-                "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, audio_bytes = ?, chapters_json = ?, converted_at = datetime('now') WHERE id = ?",
-                (audio_ref, duration, audio_size, json.dumps(chapters), doc_id),
-            )
+            if row is not None:
+                chapters = json.loads(row[0])
+                for i, ch in enumerate(chapters):
+                    if i < len(chapter_start_times):
+                        ch["start_time"] = chapter_start_times[i]
+                conn.execute(
+                    "UPDATE documents SET status = 'completed', audio_path = ?, audio_duration = ?, audio_bytes = ?, chapters_json = ?, error = NULL, converted_at = datetime('now') WHERE id = ?",
+                    (audio_ref, duration, audio_size, json.dumps(chapters), doc_id),
+                )
+
+        if row is None:
+            # The document was deleted while we were converting it — reclaim
+            # the just-saved blob instead of orphaning it forever (nothing else
+            # would ever delete it: cleanup only walks doc ids still in the DB).
+            storage.delete_audio(doc_id)
+            try:
+                if Path(output_path).exists():
+                    os.unlink(output_path)
+            except OSError as e:
+                # Best-effort cleanup: failure to remove the local staging file
+                # should not fail the request path, but should be observable.
+                logger.warning("Failed to remove local output file %s: %s", output_path, e)
+            conversion_progress.pop(doc_id, None)
+            return
+
+        # On cloud storage the local copy was only a staging file — remove it
+        # so every conversion doesn't leak an audiobook onto the instance disk.
+        if storage.use_cloud():
+            try:
+                os.unlink(output_path)
+            except OSError as cleanup_err:
+                print(f"[_run_conversion] could not remove staging file for {doc_id} at {output_path}: {cleanup_err}")
 
         progress["status"] = "completed"
         progress["progress"] = 100
-        # Clean up parsed content to free memory
-        del progress["content"]
+        progress["ts"] = time.time()
+        # Free the parsed text; a re-convert rebuilds it from chapters_json.
+        progress.pop("content", None)
+        progress.pop("original_content", None)
 
     except Exception as e:
         _capture_exception(e)  # report to Sentry (if configured) with full traceback
-        with get_db() as conn:
-            conn.execute("UPDATE documents SET status = 'error' WHERE id = ?", (doc_id,))
+        try:
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE documents SET status = 'error', error = ? WHERE id = ?",
+                    (str(e)[:500], doc_id),
+                )
+        except Exception as db_err:
+            print(f"[_run_conversion] could not persist error for {doc_id}: {db_err}")
         progress["status"] = "error"
         progress["error"] = str(e)
+        progress["ts"] = time.time()
+        # Drop the working copy (a retry re-derives it from original_content or
+        # the DB); keep original_content for a fast retry until pruned.
+        progress.pop("content", None)
     finally:
         if tmpdir:
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -1043,14 +1227,20 @@ async def get_status(doc_id: str, user: dict = Depends(optional_session)):
 
     progress = conversion_progress.get(doc_id)
     if not progress:
+        # The in-memory entry is gone (restart, or pruned) — fall back to the
+        # DB, including the persisted error message so an errored doc still
+        # explains itself, and keep the response shape consistent.
         with get_db() as conn:
-            doc = conn.execute("SELECT status FROM documents WHERE id = ?", (doc_id,)).fetchone()
+            doc = conn.execute(
+                "SELECT status, error FROM documents WHERE id = ?", (doc_id,)
+            ).fetchone()
         return {
             "status": doc["status"] if doc else "unknown",
             "progress": 100 if doc and doc["status"] == "completed" else 0,
             "current_chapter": 0,
             "total_chapters": 0,
-            "error": None,
+            "error": doc["error"] if doc else None,
+            "queue_ahead": 0,
         }
 
     return {

@@ -45,9 +45,14 @@ export default function Bookmarks({ docId, currentTime, onSeek }: Props) {
   }, [isOpen]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      setBookmarks(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setBookmarks(parsed);
+      }
+    } catch {
+      // corrupted storage — start fresh
     }
   }, [storageKey]);
 
