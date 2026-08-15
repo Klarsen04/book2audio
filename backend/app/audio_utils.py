@@ -106,8 +106,8 @@ def concat_mp3(paths: list[str | Path], out_path: str | Path) -> None:
                     capture_output=True, check=True,
                 )
                 return
-            except subprocess.CalledProcessError:
-                pass
+            except subprocess.CalledProcessError as e:
+                print(f"[audio] ffmpeg stream-copy concat failed; falling back to re-encode: {e}")
         subprocess.run(
             base_cmd + ["-c:a", "libmp3lame", "-b:a", "128k", str(out_path)],
             capture_output=True, check=True,
