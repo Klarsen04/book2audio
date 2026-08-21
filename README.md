@@ -118,6 +118,8 @@ Everything is env-driven and optional-by-default. Common ones:
 
 ## Documentation
 
+- **[FEATURES.md](./FEATURES.md)** — every feature and how it works end to end: the
+  APIs each one calls, where its data is stored, limits, and failure modes.
 - **[DOCUMENTATION.md](./DOCUMENTATION.md)** — architecture, every file explained, the
   complete env-var reference, per-service wiring, deployment, and API endpoints.
 - **[DEPLOYMENT_PERSISTENCE.md](./DEPLOYMENT_PERSISTENCE.md)** — Turso + B2/R2 setup.
