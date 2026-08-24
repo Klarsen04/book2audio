@@ -94,7 +94,10 @@ export default function NotesPanel({ docId }: Props) {
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
-      document.body.removeChild(textarea);
+      // SAFETY CHECK: Only remove if still in DOM (prevents Safari NotFoundError)
+      if (textarea.parentNode) {
+        document.body.removeChild(textarea);
+      }
       setCopyFeedback(true);
       setTimeout(() => setCopyFeedback(false), 2000);
     }
