@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ToastMessage {
@@ -16,16 +16,27 @@ export function showToast(text: string) {
 
 export default function ToastProvider() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const timeoutIds = useRef<NodeJS.Timeout[]>([]);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
+    isMountedRef.current = true;
     addToastFn = (text: string) => {
       const id = Math.random().toString(36).slice(2);
+      // Functional update is safe, but we can guard with isMountedRef to avoid unnecessary work
       setToasts((prev) => [...prev.slice(-2), { id, text }]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current) {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        }
       }, 2000);
+      timeoutIds.current.push(timeoutId);
     };
     return () => {
+      isMountedRef.current = false;
+      // Clear all pending timeouts
+      timeoutIds.current.forEach(id => clearTimeout(id));
+      timeoutIds.current = [];
       addToastFn = null;
     };
   }, []);
