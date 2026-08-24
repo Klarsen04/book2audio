@@ -11,6 +11,7 @@ import { gsap, ScrollTrigger, prefersReducedMotion } from "@/lib/gsap";
  */
 export default function SmoothScroll({ children }: { children: React.ReactNode }) {
   const lenisRef = useRef<Lenis | null>(null);
+  const updaterRef = useRef<(time: number) => void | null>();
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -26,7 +27,13 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     // Keep ScrollTrigger in sync with Lenis' virtual scroll position.
     lenis.on("scroll", ScrollTrigger.update);
 
-    const update = (time: number) => lenis.raf(time * 1000);
+    const update = (time: number) => {
+      // Safety check: ensure lenis still exists before calling methods on it
+      if (lenisRef.current) {
+        lenisRef.current.raf(time * 1000);
+      }
+    };
+    updaterRef.current = update;
     gsap.ticker.add(update);
     gsap.ticker.lagSmoothing(0);
 
@@ -36,9 +43,15 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     window.addEventListener("load", refresh);
 
     return () => {
-      gsap.ticker.remove(update);
-      lenis.destroy();
-      lenisRef.current = null;
+      // Remove from ticker FIRST
+      if (updaterRef.current) {
+        gsap.ticker.remove(updaterRef.current);
+      }
+      // Then destroy Lenis instance
+      if (lenisRef.current) {
+        lenisRef.current.destroy();
+        lenisRef.current = null;
+      }
       window.removeEventListener("load", refresh);
     };
   }, []);
