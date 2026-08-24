@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import api from "@/lib/api";
-import { downloadBlob } from "@/lib/dom";
 import { motion } from "framer-motion";
 import { fireConfetti } from "./Confetti";
 
@@ -68,7 +67,6 @@ export default function ConversionPanel({
   const [previewPlaying, setPreviewPlaying] = useState<string | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
   const convertStartRef = useRef<number | null>(null);
-  const isMountedRef = useRef(true);
 
   // Opened for an already-running job → jump straight to the progress view.
   useEffect(() => {
@@ -79,33 +77,20 @@ export default function ConversionPanel({
   }, [startConverting]);
 
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
     api
       .get("/api/voices")
       .then((res) => {
-        if (!isMountedRef.current) return;
         setVoices(res.data.voices);
       })
-      .catch(() => {
-        if (isMountedRef.current) {
-          setVoicesError(true);
-        }
-      });
+      .catch(() => setVoicesError(true));
   }, []);
 
   useEffect(() => {
     if (!isConverting) return;
 
-    let cancelled = false;
     const interval = setInterval(async () => {
       try {
         const res = await api.get(`/api/status/${jobId}`);
-        if (cancelled || !isMountedRef.current) return;
         pollFailuresRef.current = 0;
         setProgress(res.data.progress);
         setCurrentChapter(res.data.current_chapter);
@@ -126,7 +111,6 @@ export default function ConversionPanel({
           setErrorSource("convert");
         }
       } catch {
-        if (cancelled || !isMountedRef.current) return;
         // A single failed poll is usually a network blip — the conversion
         // keeps running server-side. Only give up after several in a row.
         pollFailuresRef.current += 1;
@@ -141,10 +125,7 @@ export default function ConversionPanel({
       }
     }, 1500);
 
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [isConverting, jobId, onConversionComplete]);
 
   const handleConvert = async () => {
@@ -161,12 +142,10 @@ export default function ConversionPanel({
       const res = await api.post(
         `/api/convert/${jobId}?voice=${selectedVoice}&audio_type=${audioType}&intro=${introSummary}`
       );
-      if (!isMountedRef.current) return;
       if (res.data?.split && res.data?.total_parts > 1) {
         setSplitInfo({ totalParts: res.data.total_parts });
       }
     } catch (err: any) {
-      if (!isMountedRef.current) return;
       setIsConverting(false);
       // `detail` may be a plain string or a structured object ({code, message}).
       const detail = err.response?.data?.detail;
@@ -195,8 +174,14 @@ export default function ConversionPanel({
   const handleExportLibrary = async () => {
     try {
       const res = await api.get("/api/export", { responseType: "blob" });
-      if (!isMountedRef.current) return;
-      downloadBlob(res.data, "book2audio-library.zip");
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "book2audio-library.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } catch {
       // best-effort
     }
@@ -207,17 +192,11 @@ export default function ConversionPanel({
     setFreeingSpace(true);
     try {
       await api.delete("/api/library");
-      if (isMountedRef.current) {
-        onBack();
-      }
+      onBack();
     } catch {
-      if (isMountedRef.current) {
-        setError("Couldn't clear your library. Please try again.");
-      }
+      setError("Couldn't clear your library. Please try again.");
     } finally {
-      if (isMountedRef.current) {
-        setFreeingSpace(false);
-      }
+      setFreeingSpace(false);
     }
   };
 
@@ -248,9 +227,6 @@ export default function ConversionPanel({
     audio.addEventListener("ended", onStop);
     audio.addEventListener("pause", onStop);
     return () => {
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("ended", onStop);
       audio.removeEventListener("pause", onStop);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,21 +32,14 @@ export function setNowPlaying(state: NowPlayingState | null) {
 // Reactively tracks whether a now-playing bar is currently active.
 export function useNowPlayingActive() {
   const [active, setActive] = useState(false);
-  const isMountedRef = useRef(false);
 
   useEffect(() => {
-    isMountedRef.current = true;
     const saved = sessionStorage.getItem("now_playing");
     setActive(!!saved);
-    const fn = (state: NowPlayingState | null) => {
-      if (isMountedRef.current) {
-        setActive(!!state);
-      }
-    };
+    const fn = (state: NowPlayingState | null) => setActive(!!state);
     subscribers.add(fn);
     return () => {
       subscribers.delete(fn);
-      isMountedRef.current = false;
     };
   }, []);
 
@@ -56,23 +49,15 @@ export function useNowPlayingActive() {
 export default function NowPlayingBar() {
   const [state, setState] = useState<NowPlayingState | null>(null);
   const pathname = usePathname();
-  const isMountedRef = useRef(false);
 
   useEffect(() => {
-    isMountedRef.current = true;
-    const handleStateChange = (state: NowPlayingState | null) => {
-      if (isMountedRef.current) {
-        setState(state);
-      }
-    };
     const saved = sessionStorage.getItem("now_playing");
     if (saved) {
       setState(JSON.parse(saved));
     }
-    subscribers.add(handleStateChange);
+    subscribers.add(setState);
     return () => {
-      subscribers.delete(handleStateChange);
-      isMountedRef.current = false;
+      subscribers.delete(setState);
     };
   }, []);
 

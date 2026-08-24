@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
-import { copyText, downloadText } from "@/lib/dom";
 
 /**
  * Persistent "save your restore key" banner. Because free-tier data can be wiped
@@ -12,27 +11,15 @@ import { copyText, downloadText } from "@/lib/dom";
 export default function SaveKeyBanner() {
   const { restoreKey, keySaved, markKeySaved } = useSession();
   const [copied, setCopied] = useState(false);
-  const copiedTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (copiedTimerRef.current !== null) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
-    };
-  }, []);
 
   if (!restoreKey || keySaved) return null;
 
   const copy = async () => {
-    const copiedNow = await copyText(restoreKey);
-    if (copiedNow) {
+    try {
+      await navigator.clipboard.writeText(restoreKey);
       setCopied(true);
-      if (copiedTimerRef.current !== null) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
-      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1500);
-    }
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
   };
 
   const download = () => {
@@ -40,7 +27,14 @@ export default function SaveKeyBanner() {
       `Book2Audio — your restore key\n\n${restoreKey}\n\n` +
       `Keep this safe. Pasting it on the app re-opens your library (your books, ` +
       `chapters, and progress). There's no account and no way to recover it if lost.\n`;
-    downloadText(body, "book2audio-restore-key.txt");
+    const url = URL.createObjectURL(new Blob([body], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "book2audio-restore-key.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (

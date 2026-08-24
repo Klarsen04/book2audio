@@ -10,6 +10,8 @@
   <img alt="Backend on Render" src="https://img.shields.io/badge/backend-Render-46E3B7?logo=render&logoColor=white">
 </p>
 
+> **⚠️ Safari Compatibility Note**: Due to dependencies on GSAP (GreenSock Animation Platform) and other motion libraries, Book2Audio may experience compatibility issues with Safari browser. For the best experience, we recommend using Chrome, Firefox, or Edge.
+
 **Turn documents into audiobooks.** Upload a PDF, EPUB, DOCX, TXT, a URL, or pasted text —
 Book2Audio detects the chapters, strips the running headers/footers/page-number junk, and
 reads it aloud in a natural neural voice. Listen in the app, download a `.zip` of MP3s, or
