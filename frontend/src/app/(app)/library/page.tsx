@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
+import { downloadBlob } from "@/lib/dom";
 import LibraryCard from "@/components/LibraryCard";
 import { motion, AnimatePresence } from "framer-motion";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -56,6 +57,7 @@ export default function LibraryPage() {
   const [exporting, setExporting] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [lastPlayed, setLastPlayed] = useState<Record<string, number>>({});
+  const isMountedRef = useRef(true);
 
   // Local last-played timestamps (written by the player page) drive the
   // "Recently played" sort.
@@ -66,19 +68,19 @@ export default function LibraryPage() {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Download the whole library as one .zip of MP3s (one file per book).
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
       const res = await api.get("/api/export", { responseType: "blob" });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "book2audio-library.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      if (!isMountedRef.current) return;
+      downloadBlob(res.data, "book2audio-library.zip");
     } catch (err: any) {
       // With responseType "blob" the error body is a Blob — decode it to get
       // the backend's message (e.g. "No completed audiobooks to export yet").
@@ -92,7 +94,9 @@ export default function LibraryPage() {
       } catch {}
       showToast(message);
     } finally {
-      setExporting(false);
+      if (isMountedRef.current) {
+        setExporting(false);
+      }
     }
   }, []);
 
@@ -225,14 +229,18 @@ export default function LibraryPage() {
   const fetchDocuments = async () => {
     try {
       const res = await api.get("/api/library");
+      if (!isMountedRef.current) return;
       setDocuments(res.data.documents);
       setFetchError(false);
     } catch {
+      if (!isMountedRef.current) return;
       // Distinguish "backend unreachable" from "library is empty" — showing
       // the empty state on an outage looks like the library was wiped.
       setFetchError(true);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 

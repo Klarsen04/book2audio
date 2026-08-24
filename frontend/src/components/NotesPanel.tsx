@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import { copyText, downloadText } from "@/lib/dom";
 
 interface Props {
   docId: string;
@@ -13,6 +14,7 @@ export default function NotesPanel({ docId }: Props) {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
   const storageKey = `notes_${docId}`;
 
   useEffect(() => {
@@ -53,14 +55,16 @@ export default function NotesPanel({ docId }: Props) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showExportMenu]);
 
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleExportMarkdown = () => {
-    const blob = new Blob([notes], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `notes-${docId.slice(0, 8)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(notes, `notes-${docId.slice(0, 8)}.md`, "text/markdown");
     setShowExportMenu(false);
   };
 
@@ -72,34 +76,18 @@ export default function NotesPanel({ docId }: Props) {
       .replace(/\*(.+?)\*/g, "$1")
       .replace(/`(.+?)`/g, "$1")
       .replace(/\[(.+?)\]\(.+?\)/g, "$1");
-    const blob = new Blob([plainText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `notes-${docId.slice(0, 8)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(plainText, `notes-${docId.slice(0, 8)}.txt`);
     setShowExportMenu(false);
   };
 
   const handleCopyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(notes);
+    const copied = await copyText(notes);
+    if (copied) {
       setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = notes;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      // SAFETY CHECK: Only remove if still in DOM (prevents Safari NotFoundError)
-      if (textarea.parentNode) {
-        document.body.removeChild(textarea);
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
       }
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
+      copyFeedbackTimerRef.current = window.setTimeout(() => setCopyFeedback(false), 2000);
     }
     setShowExportMenu(false);
   };
