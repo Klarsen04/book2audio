@@ -45,6 +45,8 @@ export default function ArtifactScene() {
 
   useGSAP(
     () => {
+      // Guard against unmounted root ref
+      if (!root.current) return;
       wave.current?.setAmp(mode === "wave" ? 1 : 0.15);
       wave.current?.setLife(mode === "wave" ? 1 : 0);
 
