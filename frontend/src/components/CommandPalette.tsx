@@ -17,8 +17,6 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const isMountedRef = useRef(false);
-  const timeoutIds = useRef<NodeJS.Timeout[]>([]);
 
   const commands: Command[] = [
     { id: "library", label: "Go to Library", icon: "📚", action: () => router.push("/library"), keywords: "home books" },
@@ -48,7 +46,6 @@ export default function CommandPalette() {
     : commands;
 
   useEffect(() => {
-    isMountedRef.current = true;
     const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -57,31 +54,17 @@ export default function CommandPalette() {
       if (e.key === "Escape") setIsOpen(false);
     };
     window.addEventListener("keydown", handleKey);
-    return () => {
-      isMountedRef.current = false;
-      window.removeEventListener("keydown", handleKey);
-    };
+    return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
   useEffect(() => {
-    if (!isMountedRef.current) return;
     if (isOpen) {
       setQuery("");
-      const timeoutId = setTimeout(() => {
-        if (isMountedRef.current && inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 50);
-      timeoutIds.current.push(timeoutId);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
-    return () => {
-      timeoutIds.current.forEach(id => clearTimeout(id));
-      timeoutIds.current = [];
-    };
   }, [isOpen]);
 
   const execute = (cmd: Command) => {
-    if (!isMountedRef.current) return;
     cmd.action();
     setIsOpen(false);
   };

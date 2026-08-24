@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/contexts/SessionContext";
@@ -16,17 +16,10 @@ export default function RestoreDialog({ open, onClose }: { open: boolean; onClos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
-  const isMountedRef = useRef(false);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    mounted && setMounted(true);
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [mounted]);
+  useEffect(() => setMounted(true), []);
 
-  if (!open || !mounted || !isMountedRef.current) return null;
+  if (!open || !mounted) return null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,12 +36,6 @@ export default function RestoreDialog({ open, onClose }: { open: boolean; onClos
     }
   };
 
-  // Get the portal root, ensuring we have an Element to portal into.
-  // In environments without document (e.g. SSR during build), return null.
-  // However, we know we are in the browser because:
-  // - The `mounted` state is only true after the client-side useEffect runs.
-  // - The `isMountedRef` is also true only when the component is mounted.
-  // Therefore, document.body is guaranteed to be non-null.
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/70 p-4 backdrop-blur-sm"
@@ -89,6 +76,6 @@ export default function RestoreDialog({ open, onClose }: { open: boolean; onClos
         </button>
       </div>
     </div>,
-    document.body!
+    document.body
   );
 }
