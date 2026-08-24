@@ -1,79 +1,97 @@
-/**
- * Safe DOM manipulation helpers for temporary nodes.
- * Prevents Safari NotFoundError when removing nodes that may already be detached.
- */
-
-export function safeRemove(node: Node | null | undefined): void {
+function safeRemove(node: { parentNode: Node | null; remove?: () => void } | null | undefined) {
   if (!node) return;
 
   try {
-    if (node.parentNode) {
-      node.parentNode.removeChild(node);
+    const parent = node.parentNode;
+    if (parent && parent.contains(node as Node)) {
+      parent.removeChild(node as Node);
+      return;
     }
-  } catch (e) {
-    // Ignore removal errors - node may already be detached
-    // This prevents Safari NotFoundError during cleanup
+
+    node.remove?.();
+  } catch {
+    // Best effort only — the caller already handled the user-visible action.
   }
 }
 
-export function appendHiddenNode(node: Node): HTMLElement {
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '-9999px';
-  container.style.width = '1px';
-  container.style.height = '1px';
-  container.style.overflow = 'hidden';
-  container.appendChild(node);
-  document.body.appendChild(container);
-  return container;
+function appendHiddenNode<T extends HTMLElement>(node: T) {
+  const parent = document.body || document.documentElement;
+  if (!node.isConnected) parent.appendChild(node);
+  return node;
 }
 
-export function downloadBlob(blob: Blob, filename: string): void {
-  // Create temporary link for download
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-
-  // Append to body (required for Firefox)
-  document.body.appendChild(link);
-
-  // Programmatically click
-  link.click();
-
-  // Cleanup
-  URL.revokeObjectURL(link.href);
-  safeRemove(link);
+function revokeObjectUrl(url: string, delayMs: number) {
+  window.setTimeout(() => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // Ignore cleanup failures.
+    }
+  }, delayMs);
 }
 
-export function downloadText(text: string, filename: string, contentType: string = "text/plain"): void {
-  const blob = new Blob([text], { type: contentType });
-  downloadBlob(blob, filename);
+export function downloadBlob(blob: Blob, filename: string, revokeDelayMs = 1000) {
+  if (typeof document === "undefined") return false;
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.style.position = "fixed";
+  anchor.style.top = "0";
+  anchor.style.left = "0";
+  anchor.style.width = "1px";
+  anchor.style.height = "1px";
+  anchor.style.opacity = "0";
+  anchor.style.pointerEvents = "none";
+
+  try {
+    appendHiddenNode(anchor);
+    anchor.click();
+    return true;
+  } finally {
+    safeRemove(anchor);
+    revokeObjectUrl(url, revokeDelayMs);
+  }
 }
 
-export function copyText(text: string): Promise<boolean> {
-  return navigator.clipboard.writeText(text)
-    .then(() => true)
-    .catch(async () => {
-      // Fallback for older browsers or when clipboard API is not available
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
+export function downloadText(text: string, filename: string, mimeType = "text/plain", revokeDelayMs = 1000) {
+  return downloadBlob(new Blob([text], { type: mimeType }), filename, revokeDelayMs);
+}
 
-      // Prevent scrolling to bottom of page in MS Edge
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
+export async function copyText(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to the temporary textarea below.
+    }
+  }
 
-      document.body.appendChild(textarea);
-      textarea.select();
+  if (typeof document === "undefined") return false;
 
-      try {
-        const successful = document.execCommand('copy');
-        if (!successful) throw new Error('Copy command failed');
-        return true;
-      } catch (fallbackErr) {
-        return false;
-      } finally {
-        safeRemove(textarea);
-      }
-    });
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.readOnly = true;
+  textarea.setAttribute("aria-hidden", "true");
+  textarea.tabIndex = -1;
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+
+  try {
+    appendHiddenNode(textarea);
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    safeRemove(textarea);
+  }
 }

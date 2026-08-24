@@ -26,8 +26,6 @@ export default function TransformStage() {
 
   useGSAP(
     () => {
-      // Guard against unmounted root ref
-      if (!root.current) return;
       const reduced = prefersReducedMotion();
       const q = gsap.utils.selector(root);
 
