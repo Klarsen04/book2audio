@@ -9,6 +9,7 @@ import WaveCanvas from "@/components/motion/WaveCanvas";
 import RestoreDialog from "@/components/RestoreDialog";
 import GetTheApp from "@/components/home/GetTheApp";
 import InstallHint from "@/components/InstallHint";
+import SectionShell from "@/components/home/SectionShell";
 
 /* ------------------------------------------------------------------ */
 /* Editorial masthead — gains a backdrop once past the hero           */
@@ -327,37 +328,6 @@ function VoiceDemoSection() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Small shared editorial section header                              */
-/* ------------------------------------------------------------------ */
-function SectionShell({
-  kicker,
-  title,
-  lede,
-  children,
-  id,
-}: {
-  kicker: string;
-  title: string;
-  lede?: string;
-  children: React.ReactNode;
-  id?: string;
-}) {
-  return (
-    <section id={id} className="border-t border-hairline py-24">
-      <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-14 max-w-2xl">
-          <p className="label-mono text-gold">{kicker}</p>
-          <h2 className="mt-3 font-display text-4xl font-bold leading-tight text-paper sm:text-5xl">
-            {title}
-          </h2>
-          {lede && <p className="mt-4 font-serif text-lg text-paper/60">{lede}</p>}
-        </div>
-        {children}
-      </div>
-    </section>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Page                                                               */
