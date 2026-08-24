@@ -56,10 +56,17 @@ export default function PlayerPage() {
   const [autoplayNext, setAutoplayNext] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryDocs, setLibraryDocs] = useState<LibraryDoc[]>([]);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     const stored = localStorage.getItem("autoplay_next");
     if (stored === "true") setAutoplayNext(true);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Feed the library's "Recently played" sort.
@@ -83,7 +90,9 @@ export default function PlayerPage() {
     try {
       const res = await api.get("/api/library");
       const docs = res.data.documents || res.data || [];
-      setLibraryDocs(docs);
+      if (isMountedRef.current) {
+        setLibraryDocs(docs);
+      }
       return docs;
     } catch {
       return libraryDocsRef.current;
@@ -142,6 +151,7 @@ export default function PlayerPage() {
     if (autoplayNext) {
       // Refresh first — a next part may have finished while we listened.
       const docs = await refreshLibrary();
+      if (!isMountedRef.current) return;
       const nextDoc = findNextCompletedDoc(docs);
       if (nextDoc) {
         showToast(`Playing next: ${nextDoc.title}`);
@@ -153,17 +163,31 @@ export default function PlayerPage() {
   }, [autoplayNext, refreshLibrary, findNextCompletedDoc, router]);
 
   useEffect(() => {
+    let cancelled = false;
     api
       .get(`/api/library/${docId}`)
       .then((res) => {
+        if (cancelled || !isMountedRef.current) return;
         setDocument(res.data.document);
         const t = searchParams.get("t");
         if (t) {
           setSeekTarget(parseInt(t, 10));
         }
       })
-      .catch(() => setError("Document not found"))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled && isMountedRef.current) {
+          setError("Document not found");
+        }
+      })
+      .finally(() => {
+        if (!cancelled && isMountedRef.current) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [docId, searchParams]);
 
   // If the doc isn't converted yet, watch its status so the page comes alive
@@ -171,20 +195,27 @@ export default function PlayerPage() {
   const [liveStatus, setLiveStatus] = useState<{ status: string; progress: number } | null>(null);
   useEffect(() => {
     if (!document || document.status === "completed") return;
+    let cancelled = false;
     const interval = setInterval(async () => {
       try {
         const res = await api.get(`/api/status/${docId}`);
+        if (cancelled || !isMountedRef.current) return;
         setLiveStatus({ status: res.data.status, progress: res.data.progress ?? 0 });
         if (res.data.status === "completed") {
           clearInterval(interval);
           const doc = await api.get(`/api/library/${docId}`);
-          setDocument(doc.data.document);
+          if (!cancelled && isMountedRef.current) {
+            setDocument(doc.data.document);
+          }
         }
       } catch {
         // transient — keep polling
       }
     }, 4000);
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [document, docId]);
 
   const handleChapterSelect = (index: number) => {

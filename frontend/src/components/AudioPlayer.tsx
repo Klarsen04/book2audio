@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { downloadBlob } from "@/lib/dom";
 import SleepTimer from "./SleepTimer";
 import PlaybackSpeed from "./PlaybackSpeed";
 import Waveform from "./Waveform";
@@ -51,15 +52,25 @@ export default function AudioPlayer({
   // the saved playback position must not override it.
   const externalSeekRef = useRef(false);
   const pendingSeekRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
+  const playRequestRef = useRef(0);
+  const fadeIntervalRef = useRef<number | null>(null);
 
   // Create audio element imperatively (not via JSX) to avoid React re-render issues
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "auto";
     audioRef.current = audio;
+
     return () => {
+      isMountedRef.current = false;
+      if (fadeIntervalRef.current !== null) {
+        window.clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
       audio.pause();
-      audio.src = "";
+      audio.removeAttribute("src");
+      audio.load();
       audioRef.current = null;
       // Clear the global now-playing bar — nothing is audible anymore.
       setNowPlaying(null);
@@ -89,21 +100,29 @@ export default function AudioPlayer({
       audioRef.current.currentTime = seekTarget;
       setCurrentTime(seekTarget);
       if (autoPlay) {
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-          onPlayingChange?.(true);
-        }).catch(() => {
-          // Browser blocked playback
-        });
+        const playRequest = ++playRequestRef.current;
+        audioRef.current
+          .play()
+          .then(() => {
+            if (!isMountedRef.current || playRequest !== playRequestRef.current) return;
+            setIsPlaying(true);
+            onPlayingChange?.(true);
+          })
+          .catch(() => {
+            // Browser blocked playback
+          });
       }
       onSeekHandled?.();
     }
   }, [seekTarget]);
 
   useEffect(() => {
+    let cancelled = false;
+
     api
       .get(`/api/playback/${docId}/position`)
       .then((res) => {
+        if (cancelled || !isMountedRef.current) return;
         const saved = res.data.position;
         // A caller-driven seek (?t= link, chapter click) always wins over the
         // saved resume position.
@@ -114,7 +133,15 @@ export default function AudioPlayer({
         lastSavedPosition.current = saved;
         setPositionLoaded(true);
       })
-      .catch(() => setPositionLoaded(true));
+      .catch(() => {
+        if (!cancelled && isMountedRef.current) {
+          setPositionLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [docId]);
 
   useEffect(() => {
@@ -193,17 +220,33 @@ export default function AudioPlayer({
     });
 
     navigator.mediaSession.setActionHandler("play", () => {
-      audioRef.current?.play();
-      setIsPlaying(true);
-      onPlayingChange?.(true);
+      const audio = audioRef.current;
+      if (!audio) return;
+      const playRequest = ++playRequestRef.current;
+      audio
+        .play()
+        .then(() => {
+          if (!isMountedRef.current || playRequest !== playRequestRef.current) return;
+          setIsPlaying(true);
+          onPlayingChange?.(true);
+        })
+        .catch(() => {});
     });
     navigator.mediaSession.setActionHandler("pause", () => {
       audioRef.current?.pause();
+      if (!isMountedRef.current) return;
       setIsPlaying(false);
       onPlayingChange?.(false);
     });
     navigator.mediaSession.setActionHandler("seekbackward", () => skip(-30));
     navigator.mediaSession.setActionHandler("seekforward", () => skip(30));
+
+    return () => {
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("seekbackward", null);
+      navigator.mediaSession.setActionHandler("seekforward", null);
+    };
   }, [title, chapters.length]);
 
   useEffect(() => {
@@ -211,6 +254,7 @@ export default function AudioPlayer({
     if (!audio) return;
 
     const updateTime = () => {
+      if (!isMountedRef.current) return;
       setCurrentTime(audio.currentTime);
       onTimeUpdate?.(audio.currentTime);
       if (loopA !== null && loopB !== null && audio.currentTime >= loopB) {
@@ -218,6 +262,7 @@ export default function AudioPlayer({
       }
     };
     const updateDuration = () => {
+      if (!isMountedRef.current) return;
       setDuration(audio.duration);
       if (externalSeekRef.current) {
         // A caller-driven seek beat the metadata — re-apply it now that
@@ -231,17 +276,23 @@ export default function AudioPlayer({
       }
     };
     const handleEnded = () => {
+      if (!isMountedRef.current) return;
       setIsPlaying(false);
       onPlayingChange?.(false);
       onEnded?.();
       savePosition(audio.currentTime);
     };
     const stopLoading = () => {
+      if (!isMountedRef.current) return;
       setAudioLoading(false);
       setAudioError(false);
     };
-    const startLoading = () => setAudioLoading(true);
+    const startLoading = () => {
+      if (!isMountedRef.current) return;
+      setAudioLoading(true);
+    };
     const handleError = () => {
+      if (!isMountedRef.current) return;
       setAudioLoading(false);
       // Only surface a real failure — an empty src (unmount cleanup) also
       // fires "error".
@@ -339,13 +390,16 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio || !audioUrl) return;
     if (isPlaying) {
+      playRequestRef.current += 1;
       audio.pause();
       savePosition(audio.currentTime);
       setIsPlaying(false);
       onPlayingChange?.(false);
     } else {
+      const playRequest = ++playRequestRef.current;
       try {
         await audio.play();
+        if (!isMountedRef.current || playRequest !== playRequestRef.current) return;
         setIsPlaying(true);
         onPlayingChange?.(true);
       } catch {
@@ -397,22 +451,32 @@ export default function AudioPlayer({
     if (!audioRef.current) return;
     const audio = audioRef.current;
     const startVolume = audio.volume;
-    const fadeInterval = setInterval(() => {
+    if (fadeIntervalRef.current !== null) {
+      window.clearInterval(fadeIntervalRef.current);
+    }
+    fadeIntervalRef.current = window.setInterval(() => {
+      if (!isMountedRef.current || !audioRef.current) {
+        if (fadeIntervalRef.current !== null) {
+          window.clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+        return;
+      }
       if (audio.volume > 0.05) {
         audio.volume = Math.max(0, audio.volume - startVolume / 30);
       } else {
-        clearInterval(fadeInterval);
+        if (fadeIntervalRef.current !== null) {
+          window.clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
         audio.volume = startVolume;
       }
     }, 1000);
   };
 
-  const handleDownload = () => {
-    const a = document.createElement("a");
-    // `?download=1` makes the backend serve it as an attachment.
-    a.href = `/api/download/${docId}?download=1`;
-    a.download = `${title}.mp3`;
-    a.click();
+  const handleDownload = async () => {
+    const res = await api.get(`/api/download/${docId}?download=1`, { responseType: "blob" });
+    downloadBlob(res.data, `${title}.mp3`);
   };
 
   const formatTime = (seconds: number) => {
