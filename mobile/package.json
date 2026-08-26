@@ -4,11 +4,11 @@
   "main": "index.ts",
   "dependencies": {
     "@react-native-masked-view/masked-view": "^0.3.2",
-    "@react-navigation/bottom-tabs": "^7.18.14",
+    "@react-navigation/bottom-tabs": "^7.18.17",
     "@react-navigation/native": "^7.3.14",
-    "@react-navigation/stack": "^7.10.17",
+    "@react-navigation/stack": "^7.10.23",
     "axios": "^1.18.1",
-    "expo": "~57.0.13",
+    "expo": "~57.0.15",
     "expo-av": "^16.0.8",
     "expo-clipboard": "^8.0.7",
     "expo-document-picker": "^57.0.1",
@@ -17,7 +17,7 @@
     "react": "19.2.8",
     "react-native": "0.87.0",
     "react-native-gesture-handler": "^3.2.1",
-    "react-native-safe-area-context": "^5.9.0",
+    "react-native-safe-area-context": "^5.9.1",
     "react-native-screens": "^4.26.2"
   },
   "devDependencies": {
